@@ -33,9 +33,9 @@ function Startup {
 
     Write-Output "#########################`nMSSQL audit tool`n#########################"
 
-    Write-Output "Using $Server as target server"
-    if ($Database -ne "") {
-        Write-Output "Using $Database as target database"
+    Write-Output "Using $Script:Server as target server"
+    if ($Script:Database -ne "") {
+        Write-Output "Using $Script:Database as target database"
     }
     else {
         Write-Output "There Currently no database selected."
@@ -91,7 +91,7 @@ function SqlConnectionBuilder {
     Builds and returns the SqlConnection object.
     
     .DESCRIPTION
-    Creates an ConnectionString based on the global script variables $Server and $Database.
+    Creates an ConnectionString based on the global script variables $Script:Server and $Script:Database.
     
     .EXAMPLE
     SqlConnectionBuilder
@@ -366,6 +366,7 @@ function L2.1 {
         Write-Output "The 'msdb' database's 'public' role has not been granted access to proxies.`n"
     }
     $Script:Database = $Script:OriginalDatabase
+    SqlConnectionBuilder
 }
 
 function L2.2 {
@@ -573,7 +574,7 @@ function L3.4 {
         $Script:Database = $db.name
         SqlConnectionBuilder
         $DataSet = DataCollector $SqlQuery
-            $DataSet.Tables[0].Rows | Format-Table -Wrap
+        $DataSet.Tables[0].Rows | Format-Table -Wrap
     }
     $Script:Database = $Script:OriginalDatabase
     SqlConnectionBuilder
