@@ -13,7 +13,7 @@ param(
     $Database,
 
     # Sets authentication form to Windows Authentication.
-    [parameter()]
+    [parameter(ParameterSetName = "WindowsAuthentication")]
     [switch]
     $WindowsAuthentication,
 
@@ -131,7 +131,7 @@ function SqlConnectionBuilder {
         $Script:SqlConnection.ConnectionString = "Server = $Script:Server; Database = $Script:Database; Integrated Security = True;"
     }
     if ($SQLAuthentication) {
-        $Script:SqlConnection.ConnectionString = "Server = $Script:Server; Database = $Script:Database; User Id = $Username; Password = $Script:Password;"
+        $Script:SqlConnection.ConnectionString = "Server = $Script:Server; Database = $Script:Database; User Id = $Script:Username; Password = $Script:Password;"
     }
 }
 
