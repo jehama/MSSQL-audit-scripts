@@ -36,11 +36,13 @@ function Startup {
     Write-Output "Using $Script:Server as target server"
     if ($Script:Database -ne "") {
         Write-Output "Using $Script:Database as target database"
+        $Script:AllDatabases = $false
     }
     else {
         Write-Output "There Currently no database selected."
         Write-Output "Selecting database `"master`" instead"
         $Script:Database = "master"
+        $Script:AllDatabases = $true
     }
 
     $Script:OriginalDatabase = $Script:Database
@@ -570,14 +572,20 @@ function L3.4 {
                 WHERE [grantee_principal_id] = DATABASE_PRINCIPAL_ID('guest');"
     Write-Output "Check for each of the following databases if the 'CONNECT' permission has been revoked."
     Write-Output "The connect permission is required for the 'master', 'tempdb', 'msdb' databases. Therefore they can be ignored." 
-    foreach ($db in $Script:ListOfDatabases.Tables[0]) {
-        $Script:Database = $db.name
+    if ($Script:AllDatabases) {
+        foreach ($db in $Script:ListOfDatabases.Tables[0]) {
+            $Script:Database = $db.name
+            SqlConnectionBuilder
+            $DataSet = DataCollector $SqlQuery
+            $DataSet.Tables[0].Rows | Format-Table -Wrap
+        }
+        $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
-        $DataSet = DataCollector $SqlQuery
-        $DataSet.Tables[0].Rows | Format-Table -Wrap
     }
-    $Script:Database = $Script:OriginalDatabase
-    SqlConnectionBuilder
+    else {
+        $Dataset = DataCollector $SqlQuery
+        $Dataset.Tables[0].Rows | Format-Table -Wrap
+    }
 }
 
 function L3.5 {
@@ -785,17 +793,21 @@ function L3.5 {
     $SqlQuery = "SELECT *
                 FROM sys.symmetric_keys;"
     Write-Output "Check for every databse if the 'algorithm_desc' is set to 'AES_128', 'AES_192' or 'AES_256'."
-    Write-Output "If no output is returned for a database then this means that no symmetric key is available for that database."
-    foreach ($db in $Script:ListOfDatabases.Tables[0]) {
-        $Script:Database = $db.name
+    Write-Output "If no output is returned for a database then this means that no symmetric key is available for that database.`n"
+    if ($Script:AllDatabases) {
+        foreach ($db in $Script:ListOfDatabases.Tables[0]) {
+            $Script:Database = $db.name
+            SqlConnectionBuilder
+            $DataSet = DataCollector $SqlQuery
+            $DataSet.Tables[0].Rows | Format-Table -Wrap
+        }
+        $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
-        $DataSet = DataCollector $SqlQuery
-        Write-Output ($db.name + ":")
-        $DataSet.Tables[0].Rows | Format-Table -Wrap
     }
-    Write-Output ("`n")
-    $Script:Database = $Script:OriginalDatabase
-    SqlConnectionBuilder
+    else {
+        $Dataset = DataCollector $SqlQuery
+        $Dataset.Tables[0].Rows | Format-Table -Wrap
+    }
 
     # This query is based on CIS 7.2.
     # Checks if 'Asymmetric Key Size' is set to 'RSA_2048'.
@@ -804,17 +816,21 @@ function L3.5 {
                         key_length
                 FROM sys.asymmetric_keys;"
     Write-Output "Check for every databse if the 'key_length' is set to '2048'."
-    Write-Output "If no output is returned for a database then this means that no asymmetric key is available for that database."
-    foreach ($db in $Script:ListOfDatabases.Tables[0]) {
-        $Script:Database = $db.name
+    Write-Output "If no output is returned for a database then this means that no asymmetric key is available for that database.`n"
+    if ($Script:AllDatabases) {
+        foreach ($db in $Script:ListOfDatabases.Tables[0]) {
+            $Script:Database = $db.name
+            SqlConnectionBuilder
+            $DataSet = DataCollector $SqlQuery
+            $DataSet.Tables[0].Rows | Format-Table -Wrap
+        }
+        $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
-        $DataSet = DataCollector $SqlQuery
-        Write-Output ($db.name + ":")
-        $DataSet.Tables[0].Rows | Format-Table -Wrap
     }
-    Write-Output ("`n")
-    $Script:Database = $Script:OriginalDatabase
-    SqlConnectionBuilder
+    else {
+        $Dataset = DataCollector $SqlQuery
+        $Dataset.Tables[0].Rows | Format-Table -Wrap
+    }
 }
 
 function L3.7 {
@@ -1112,16 +1128,20 @@ function UserObtainer {
         [PermissionState],
         [ObjectType]
     "
-    Write-Output "SHOW"
-    foreach ($db in $Script:ListOfDatabases.Tables[0]) {
-        $Script:Database = $db.name
+    if ($Script:AllDatabases) {
+        foreach ($db in $Script:ListOfDatabases.Tables[0]) {
+            $Script:Database = $db.name
+            SqlConnectionBuilder
+            $DataSet = DataCollector $SqlQuery
+            $DataSet.Tables[0].Rows | Format-Table -Wrap
+        }
+        $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
-        $DataSet = DataCollector $SqlQuery
-        Write-Output ($db.name + ":")
-        $DataSet.Tables[0].Rows | Format-Table -Wrap
     }
-    $Script:Database = $Script:OriginalDatabase
-    SqlConnectionBuilder
+    else {
+        $Dataset = DataCollector $SqlQuery
+        $Dataset.Tables[0].Rows | Format-Table -Wrap
+    }
 }
 
 function test {
@@ -1186,14 +1206,20 @@ function test {
                 AND dprin.type = 'R'
                 ORDER BY 1, 2, 3, 4, 5, 6;"
     Write-Output "Audit roles on each database, defining what they are and what they can do"
-    foreach ($db in $Script:ListOfDatabases.Tables[0]) {
-        $Script:Database = $db.name
-        SqlConnectionBuilder
-        $DataSet = DataCollector $SqlQuery
+    if ($Script:AllDatabases) {
+        foreach ($db in $Script:ListOfDatabases.Tables[0]) {
+            $Script:Database = $db.name
+            SqlConnectionBuilder
+            $DataSet = DataCollector $SqlQuery
             $DataSet.Tables[0].Rows | Format-Table -Wrap
+        }
+        $Script:Database = $Script:OriginalDatabase
+        SqlConnectionBuilder
     }
-    $Script:Database = $Script:OriginalDatabase
-    SqlConnectionBuilder
+    else {
+        $Dataset = DataCollector $SqlQuery
+        $Dataset.Tables[0].Rows | Format-Table -Wrap
+    }
 
     # Step 3: Audit the roles that users are in
     $SqlQuery = "SELECT
@@ -1212,14 +1238,20 @@ function test {
                     ON m.member_principal_id = u.principal_id
                 ORDER BY 1, 2, 3, 4;"
     Write-Output "Audit the roles that users are in"
-    foreach ($db in $Script:ListOfDatabases.Tables[0]) {
-        $Script:Database = $db.name
-        SqlConnectionBuilder
-        $DataSet = DataCollector $SqlQuery
+    if ($Script:AllDatabases) {
+        foreach ($db in $Script:ListOfDatabases.Tables[0]) {
+            $Script:Database = $db.name
+            SqlConnectionBuilder
+            $DataSet = DataCollector $SqlQuery
             $DataSet.Tables[0].Rows | Format-Table -Wrap
+        }
+        $Script:Database = $Script:OriginalDatabase
+        SqlConnectionBuilder
     }
-    $Script:Database = $Script:OriginalDatabase
-    SqlConnectionBuilder
+    else {
+        $Dataset = DataCollector $SqlQuery
+        $Dataset.Tables[0].Rows | Format-Table -Wrap
+    }
 
     # Step 4: Audit any users that have access to specific objects outside of a role
     $SqlQuery = "SELECT
@@ -1252,14 +1284,20 @@ function test {
                 AND dprin.type <> 'R'
                 ORDER BY 1, 2, 3, 4, 5;"
     Write-Output "Audit any users that have access to specific objects outside of a role"
-    foreach ($db in $Script:ListOfDatabases.Tables[0]) {
-        $Script:Database = $db.name
-        SqlConnectionBuilder
-        $DataSet = DataCollector $SqlQuery
+    if ($Script:AllDatabases) {
+        foreach ($db in $Script:ListOfDatabases.Tables[0]) {
+            $Script:Database = $db.name
+            SqlConnectionBuilder
+            $DataSet = DataCollector $SqlQuery
             $DataSet.Tables[0].Rows | Format-Table -Wrap
+        }
+        $Script:Database = $Script:OriginalDatabase
+        SqlConnectionBuilder
     }
-    $Script:Database = $Script:OriginalDatabase
-    SqlConnectionBuilder
+    else {
+        $Dataset = DataCollector $SqlQuery
+        $Dataset.Tables[0].Rows | Format-Table -Wrap
+    }
 }
 
 
