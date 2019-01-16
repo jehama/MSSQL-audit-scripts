@@ -1,3 +1,4 @@
+[CmdletBinding(DefaultParameterSetName="None")]
 # This initializes the parameters which were present when the script was launched.
 param(
     # The MSSQL Server to connect to.
@@ -9,7 +10,23 @@ param(
     # This parameter is optional. Only use this if you wish to audit a specific database.
     [parameter()]
     [String]
-    $Database
+    $Database,
+
+    # Sets authentication form to Windows Authentication.
+    [parameter()]
+    [switch]
+    $WindowsAuthentication,
+
+    # Sets authentication form to SQL Authentication.
+    [parameter(ParameterSetName = "SQLAuthentication", Mandatory = $false)]
+    [switch]
+    $SQLAuthentication,
+
+    # The username to authenticate with.
+    # This is required when using SQL authentication, but has no effect when using Windows authentication.
+    [parameter(ParameterSetName = "SQLAuthentication", Mandatory = $true)]
+    [String]
+    $Username
 )
 
 function Startup {
@@ -32,6 +49,12 @@ function Startup {
     param()
 
     Write-Output "#########################`nMSSQL audit tool`n#########################"
+
+    if($SQLAuthentication) {
+        $SecurePassword = Read-Host -AsSecureString "Enter password"
+        $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecurePassword)
+        $Script:Password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+    }
 
     Write-Output "Using $Script:Server as target server"
     if ($Script:Database -ne "") {
@@ -104,8 +127,13 @@ function SqlConnectionBuilder {
     # It uses the credentials of the current user.
     # Using other credentials or SQL login is currently not supported.
     $Script:SqlConnection = New-Object System.Data.SqlClient.SqlConnection
-    $Script:SqlConnection.ConnectionString = "Server = $Script:Server; Database = $Script:Database; Integrated Security = True;"
+    if ($WindowsAuthentication) {
+        $Script:SqlConnection.ConnectionString = "Server = $Script:Server; Database = $Script:Database; Integrated Security = True;"
     }
+    if ($SQLAuthentication) {
+        $Script:SqlConnection.ConnectionString = "Server = $Script:Server; Database = $Script:Database; User Id = $Username; Password = $Script:Password;"
+    }
+}
 
 function DataCollector {
     <#
