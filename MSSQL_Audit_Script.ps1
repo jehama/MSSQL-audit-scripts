@@ -42,11 +42,10 @@ This will save the output in a file called output.txt.
 .\MSSQL_Audit_Script.ps1 -Server "Servername" -SQLAuthentication -Username "test"
 
 .EXAMPLE
-# When auditing a specific database:
 .\MSSQL_Audit_Script.ps1 -Server "Servername" -Database "DatabaseName" -WindowsAuthentication
 #>
 
-[CmdletBinding(DefaultParameterSetName="None")]
+[CmdletBinding()]
 # This initializes the parameters which were present when the script was launched.
 param(
     # Specifies the MSSQL Server to connect to.
