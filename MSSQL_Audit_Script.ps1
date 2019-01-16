@@ -1024,16 +1024,16 @@ function UserObtainer {
             [Role]             = NULL,
             [PermissionType]   = perm.[permission_name],
             [PermissionState]  = perm.[state_desc],
+            [ObjectName] = CASE perm.[class]
+            WHEN 3 THEN permschem.[name]       -- Schemas
+            WHEN 4 THEN imp.[name]             -- Impersonations
+            ELSE OBJECT_NAME(perm.[major_id])  -- General objects
+        END,
             [ObjectType] = CASE perm.[class]
                                WHEN 1 THEN obj.[type_desc]        -- Schema-contained objects
                                ELSE perm.[class_desc]             -- Higher-level objects
                            END,
             [Schema] = objschem.[name],
-            [ObjectName] = CASE perm.[class]
-                               WHEN 3 THEN permschem.[name]       -- Schemas
-                               WHEN 4 THEN imp.[name]             -- Impersonations
-                               ELSE OBJECT_NAME(perm.[major_id])  -- General objects
-                           END,
             [ColumnName] = col.[name]
         FROM
             --Database user
@@ -1069,16 +1069,16 @@ function UserObtainer {
             [Role]             = roleprinc.[name],
             [PermissionType]   = perm.[permission_name],
             [PermissionState]  = perm.[state_desc],
+            [ObjectName] = CASE perm.[class]
+            WHEN 3 THEN permschem.[name]       -- Schemas
+            WHEN 4 THEN imp.[name]             -- Impersonations
+            ELSE OBJECT_NAME(perm.[major_id])  -- General objects
+        END,
             [ObjectType] = CASE perm.[class]
                                WHEN 1 THEN obj.[type_desc]        -- Schema-contained objects
                                ELSE perm.[class_desc]             -- Higher-level objects
                            END,
             [Schema] = objschem.[name],
-            [ObjectName] = CASE perm.[class]
-                               WHEN 3 THEN permschem.[name]       -- Schemas
-                               WHEN 4 THEN imp.[name]             -- Impersonations
-                               ELSE OBJECT_NAME(perm.[major_id])  -- General objects
-                           END,
             [ColumnName] = col.[name]
         FROM
             --Role/member associations
@@ -1114,16 +1114,16 @@ function UserObtainer {
             [Role]             = roleprinc.[name],
             [PermissionType]   = perm.[permission_name],
             [PermissionState]  = perm.[state_desc],
+            [ObjectName] = CASE perm.[class]
+            WHEN 3 THEN permschem.[name]       -- Schemas
+            WHEN 4 THEN imp.[name]             -- Impersonations
+            ELSE OBJECT_NAME(perm.[major_id])  -- General objects
+        END,
             [ObjectType] = CASE perm.[class]
                                WHEN 1 THEN obj.[type_desc]        -- Schema-contained objects
                                ELSE perm.[class_desc]             -- Higher-level objects
                            END,
             [Schema] = objschem.[name],
-            [ObjectName] = CASE perm.[class]
-                               WHEN 3 THEN permschem.[name]       -- Schemas
-                               WHEN 4 THEN imp.[name]             -- Impersonations
-                               ELSE OBJECT_NAME(perm.[major_id])  -- General objects
-                           END,
             [ColumnName] = col.[name]
         FROM
             --Roles
