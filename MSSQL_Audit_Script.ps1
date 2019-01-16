@@ -94,7 +94,7 @@ function Startup {
     # This statement is used to signal the start of the script.
     # It verifies that the script has started successfully.
     [CmdletBinding()]
-
+    
     param()
 
     Write-Output "#########################`nMSSQL audit tool`n#########################"
@@ -824,7 +824,7 @@ function L3.5 {
                     @key = N'SOFTWARE\Microsoft\Microsoft SQL Server\MSSQLServer\SuperSocketNetLib',
                     @value_name = N'HideInstance',
                     @value = @getValue OUTPUT;
-                SELECT @getvalue as is_hidden, SERVERPROPERTY('IsClustered') as is_in_cluster;"
+                SELECT @getValue as is_hidden, SERVERPROPERTY('IsClustered') as is_in_cluster;"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if the server is hidden (1)."
     Write-Output "If the server is in a cluster it might be necessary to have this turned off."
