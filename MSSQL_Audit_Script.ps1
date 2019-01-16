@@ -94,11 +94,17 @@ function Startup {
     # This statement is used to signal the start of the script.
     # It verifies that the script has started successfully.
     [CmdletBinding()]
-    
     param()
+
+    # A stopwatch is used to check how long a section of the script has needed to be completed.
+    # It is also used to check the total amount of time needed to complete the script.
+    $Script:Stopwatch = New-Object -TypeName System.Diagnostics.Stopwatch
+    $Script:TotalTime = $Script:Stopwatch.Elapsed
+    $Script:Stopwatch.Start()
 
     Write-Output "#########################`nMSSQL audit tool`n#########################"
 
+    # The password will not be visible while typing it in.
     if($SQLAuthentication) {
         $SecurePassword = Read-Host -AsSecureString "Enter password"
         $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecurePassword)
@@ -123,6 +129,12 @@ function Startup {
 
     CheckFullVersion
     GenerateDatabaseList
+
+    Write-Host "Setup completed in:                     " $Script:Stopwatch.Elapsed
+    $Script:TotalTime += $Script:Stopwatch.Elapsed
+    Write-Host "Total time elapsed:                     " $Script:TotalTime
+    $Script:Stopwatch.Restart()
+
     Main
 }
 
@@ -138,7 +150,6 @@ function Main {
     Main
     #>
     [CmdletBinding()]
-
     param()
 
     # Each function called corresponds to a different standard.
@@ -153,10 +164,25 @@ function Main {
     L3.5
     L3.7
 
+    Write-Host "CIS-benchmark completed in:             " $Script:Stopwatch.Elapsed
+    $Script:TotalTime += $Script:Stopwatch.Elapsed
+    Write-Host "Total time elapsed:                     " $Script:TotalTime
+    $Script:Stopwatch.Restart()
+
     # Obtains all logins and users from the MSSQL Server.
     UserObtainer
 
+    Write-Host "User management part 1 completed in:    " $Script:Stopwatch.Elapsed
+    $Script:TotalTime += $Script:Stopwatch.Elapsed
+    Write-Host "Total time elapsed:                     " $Script:TotalTime
+    $Script:Stopwatch.Restart()
+
+    # Used to obtain all users and their rights.
     test
+
+    Write-Host "User management part 2 completed in:    " $Script:Stopwatch.Elapsed
+    $Script:TotalTime += $Script:Stopwatch.Elapsed
+    Write-Host "Audit has finished, total time elapsed: " $Script:TotalTime
 }
 
 function SqlConnectionBuilder {
