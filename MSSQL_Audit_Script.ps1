@@ -262,7 +262,7 @@ function CheckFullVersion {
 
     # Wrap is used because otherwise the whole value will not be showed in the output.
     Write-Output "The server currently has the following version:"
-    $Dataset.Tables[0].Rows | Format-Table -HideTableHeaders -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -HideTableHeaders -Wrap | Out-String -Width 50000
 }
 
 function GenerateDatabaseList {
@@ -288,7 +288,7 @@ function GenerateDatabaseList {
     FROM sys.databases;"
     $Script:ListOfDatabases = DataCollector $SqlQuery
     Write-Output "This server contains the following databases:"
-    Write-Output $Script:ListOfDatabases.Tables[0].Rows | Format-Table -Wrap
+    Write-Output $Script:ListOfDatabases.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 }
 
 function L1.1 {
@@ -340,7 +340,7 @@ function L1.1 {
                 ON l.principal_id = p.grantee_principal_id;"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if SQL Authenticated Logins have the 'CHECK_EXPIRATION' option set to on."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
 }
 
@@ -373,7 +373,7 @@ function L1.2 {
                 AND type IN ('U', 'S', 'G')"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if SQL authentication (authentication_type 2) is not used in contained databases."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
     # This query is based on CIS 4.3.
     # Checks if the 'CHECK_POLICY' Option is set to 'True' for all SQL Authenticated Logins.
@@ -383,7 +383,7 @@ function L1.2 {
                 FROM sys.sql_logins;"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if 'is_policy_checked' is set to 'True'."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 }
 
 function L1.3 {
@@ -411,7 +411,7 @@ function L1.3 {
     $SqlQuery = "SELECT SERVERPROPERTY('IsIntegratedSecurityOnly') as [login_mode];"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if 'login_mode' is set to 'Windows Authentication Mode' only (1)."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 }
 
 function L2.1 {
@@ -449,7 +449,7 @@ function L2.1 {
     Write-Output "state_desc = 'GRANT' and [permission_name] = 'CONNECT' and class_desc = 'ENDPOINT' and major_id = 3)"
     Write-Output "state_desc = 'GRANT' and [permission_name] = 'CONNECT' and class_desc = 'ENDPOINT' and major_id = 4)"
     Write-Output "state_desc = 'GRANT' and [permission_name] = 'CONNECT' and class_desc = 'ENDPOINT' and major_id = 5)"
-    $Dataset.Tables[0].Rows | Format-Table -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
     # This query is based on CIS 3.11.
     # Checks if the 'msdb' user does not have access to the SQL Agent proxies.
@@ -465,7 +465,7 @@ function L2.1 {
     if ($Dataset.Tables[0].Rows.Count -gt 0) {
         Write-Output "The 'msdb' database's 'public' role has been granted to the following proxies."
         Write-Output "These proxies may have higher privilages then the 'public' role. Therefore they should be removed.`n"
-        $Dataset.Tables[0].Rows | Format-Table -Wrap
+        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
     }
     else {
         Write-Output "The 'msdb' database's 'public' role has not been granted access to proxies.`n"
@@ -509,7 +509,7 @@ function L2.2 {
     $Dataset = DataCollector $SqlQuery
     Write-Output "The following groups or accounts have been added as SQL Server Logins."
     Write-Output "Check if none of these logins are Windows BUILTIN groups or accounts.`n"
-    $Dataset.Tables[0].Rows | Format-Table -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
     # This query is based on CIS 3.10.
     # Checks if it is not allowed for 'WINDOWS_GROUP' users to be added to the server.
@@ -525,7 +525,7 @@ function L2.2 {
     $Dataset = DataCollector $SqlQuery
     Write-Output "The following groups or accounts have been added as SQL Server Logins."
     Write-Output "Check if there are no WINDOWS_GROUP users. (type_desc = WINDOWS_GROUP and LocalGroupName contains the MachineName)`n"
-    $Dataset.Tables[0].Rows | Format-Table -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 }
 function L2.8 {
     <#
@@ -554,7 +554,7 @@ function L2.8 {
     if ($Dataset.Tables[0].Rows.Count -gt 0) {
         Write-Output "The following accounts are 'orphaned'."
         Write-Output "These accounts should probably be removed.`n"
-        $Dataset.Tables[0].Rows | Format-Table -Wrap
+        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
     }
     else {
         Write-Output "There are no accounts that are 'orphaned'.`n"
@@ -588,7 +588,7 @@ function L3.3 {
     $Dataset = DataCollector $SqlQuery
     Write-Output "The server contains the following Service Pack and Version."
     Write-Output "Check if these match the expected versions."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 }
 
 function L3.4 {
@@ -629,7 +629,7 @@ function L3.4 {
                 SELECT @value AS TCP_Port"
     $DataSet = DataCollector $SqlQuery
     Write-Output "Check that the server does not use the default TCP_Port 1433."
-    $DataSet.Tables[0].Rows | Format-Table -Wrap
+    $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
     
     # This query is based on CIS 2.13.
     # Checks if the default 'sa' account is disabled.
@@ -640,7 +640,7 @@ function L3.4 {
                 WHERE sid = 0x01;"
     $DataSet = DataCollector $SqlQuery
     Write-Output "Check if the default 'sa' account is disabled (True)"
-    $DataSet.Tables[0].Rows | Format-Table -Wrap
+    $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
     # This query is based on CIS 2.14.
     # Checks if the default 'sa' account is renamed.
@@ -652,7 +652,7 @@ function L3.4 {
     $DataSet = DataCollector $SqlQuery
     Write-Output "Check if the default 'sa' account has been renamed."
     Write-Output "If the 'sa' account has already been disabled this check might be skipped."
-    $DataSet.Tables[0].Rows | Format-Table -Wrap
+    $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
     # This query is based on CIS 2.17.
     # Checks if no login exists with the name 'sa'.
@@ -663,7 +663,7 @@ function L3.4 {
     $DataSet = DataCollector $SqlQuery
     Write-Output "Check if no login exists with the name 'sa', even if this is not the original 'sa' account."
     Write-Output "If the principal ID of the sa account is 1 and it is disabled this check  might be skipped."
-    $DataSet.Tables[0].Rows | Format-Table -Wrap
+    $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
     # This query is based on CIS 3.2.
     # Checks if the guest user has it's rights revoked on the databases, with the exception of the msdb
@@ -680,14 +680,14 @@ function L3.4 {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $DataSet = DataCollector $SqlQuery
-            $DataSet.Tables[0].Rows | Format-Table -Wrap
+            $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        $Dataset.Tables[0].Rows | Format-Table -Wrap
+        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
     }
 }
 
@@ -736,7 +736,7 @@ function L3.5 {
                 WHERE name = 'Ad Hoc Distributed Queries';"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if 'Add Hoc Distributed Queries' is disabled (0)."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
     # This query is based on CIS 2.2.
     # Checks if the option 'clr enabled' is disabled.
@@ -747,7 +747,7 @@ function L3.5 {
                 WHERE name = 'clr enabled';"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if 'clr enabled' is disabled (0)."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
     # This query is based on CIS 2.3.
     # Checks if the option 'cross db ownership chaining' is disabled.
@@ -758,7 +758,7 @@ function L3.5 {
                 WHERE name = 'cross db ownership chaining';"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if 'cross db ownership chaining' is disabled (0)."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
     # This query is based on CIS 2.4.
     # Checks if the option 'Database Mail XPs' is disabled.
@@ -769,7 +769,7 @@ function L3.5 {
                 WHERE name = 'Database Mail XPs';"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if 'Database Mail XPs' is disabled (0)."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
     # This query is based on CIS 2.5.
     # Checks if the option 'Ole Automation Procedures' is disabled.
@@ -780,7 +780,7 @@ function L3.5 {
                 WHERE name = 'Ole Automation Procedures';"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if 'Ole Automation Procedures' is disabled (0)."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
     # This query is based on CIS 2.6.
     # Checks if the option 'remote access' is disabled.
@@ -791,7 +791,7 @@ function L3.5 {
                 WHERE name = 'remote access';"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if 'remote access' is disabled (0)."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
     # This query is based on CIS 2.7.
     # Checks if the option 'remote admin connections' is disabled if the server is not in a cluster.
@@ -804,7 +804,7 @@ function L3.5 {
     $Dataset = DataCollector $SqlQuery
     if ($Dataset.Tables[0].Rows.Count -gt 0) {
         Write-Output "Check if 'remote admin connections' is disabled (0)."
-        $Dataset.Tables[0].Rows | Format-Table -Wrap
+        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
     }
     else {
         Write-Output "This server is in a cluster. Therefore the check for 'remote admin connections' does not apply."
@@ -820,7 +820,7 @@ function L3.5 {
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if 'scan for startup procs' is disabled (0)"
     Write-Output "Note that this option might be enabled to use certain audit traces, stored procedures and replication."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
     # This query is based on CIS 2.9.
     # Checks if the option 'is_trustworthy_on' is disabled.
@@ -832,7 +832,7 @@ function L3.5 {
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check for the following databases if they have the (is_trustworthy_on set to False)."
     Write-Output "The 'msdb' database is required to have 'is_trustworthy_on set to True.`n"
-    $Dataset.Tables[0].Rows | Format-Table -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
     # This check is based on CIS 2.10.
     # There is currently no query available to check this.
@@ -854,7 +854,7 @@ function L3.5 {
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if the server is hidden (1)."
     Write-Output "If the server is in a cluster it might be necessary to have this turned off."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
     # This query is based on CIS 2.15.
     # Checks if the option 'xp_cmdshell' is disabled.
@@ -865,7 +865,7 @@ function L3.5 {
                 WHERE name = 'xp_cmdshell';"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if 'xp_cmdshell' is disabled (0)."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
     # This query is based on CIS 2.16.
     # Checks if the is_auto_close_on option is turned off for contained databases.
@@ -878,7 +878,7 @@ function L3.5 {
     $Dataset = DataCollector $SqlQuery
     if ($Dataset.Tables[0].Rows.Count -gt 0) {
         Write-Output "Check if the 'is_auto_close_on' option is set to 'False' for the databases with 'containment' not set to '0'."
-        $Dataset.Tables[0].Rows | Format-Table -Wrap
+        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
     }
 
     # This query is based on CIS 6.2.
@@ -902,14 +902,14 @@ function L3.5 {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $DataSet = DataCollector $SqlQuery
-            $DataSet.Tables[0].Rows | Format-Table -Wrap
+            $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        $Dataset.Tables[0].Rows | Format-Table -Wrap
+        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
     }
 
     # This query is based on CIS 7.2.
@@ -925,14 +925,14 @@ function L3.5 {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $DataSet = DataCollector $SqlQuery
-            $DataSet.Tables[0].Rows | Format-Table -Wrap
+            $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        $Dataset.Tables[0].Rows | Format-Table -Wrap
+        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
     }
 }
 
@@ -973,7 +973,7 @@ function L3.7 {
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if the 'NumberOfLogFiles' is 12 or higher."
     Write-Output "If the number is -1, this might mean that the 'Limit the number of error log files before they are recycled' checkmark is not checked."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
     # This query is based on CIS 5.2.
     # Checks if the default trace is enabled.
@@ -984,7 +984,7 @@ function L3.7 {
                 WHERE name = 'default trace enabled';"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if 'default trace enabled' is enabled (1)."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
     # This query is based on CIS 5.3.
     # Checks if the 'Login Auditing' is set to 'faled logins'
@@ -992,7 +992,7 @@ function L3.7 {
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if the 'audit level' is configured to failure."
     Write-Output "A value of 'all' is also accepted, however it is recommended to check this with the SQL Server audit feature."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
     # This query is based on CIS 5.4.
     # Checks if the 'SQL Server Audit' is set to capture both 'failed' and 'successful logins'.
@@ -1020,7 +1020,7 @@ function L3.7 {
     Write-Output "3 Rows should be returned."
     Write-Output "For these rows check if both the 'Audit Enabled' and 'Audit Specification Enabled' are set to 'Y'."
     Write-Output "Also check if 'audited_result' is set to 'SUCCESS AND FAILURE'."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 }
 
 function UserObtainer {
@@ -1047,7 +1047,7 @@ function UserObtainer {
     $SqlQuery = "EXEC sp_MSloginmappings;"
     $Dataset = DataCollector $SqlQuery
     Write-Output "These tables contain every login on the server and their corresponding databases."
-    $Dataset.Tables.Rows | Format-Table -Wrap
+    $Dataset.Tables.Rows | Format-Table -Wrap | Out-String -Width 5000
 
     Write-Output "###### Now retrieving all databases users and their permissions."
 
@@ -1236,14 +1236,14 @@ function UserObtainer {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $DataSet = DataCollector $SqlQuery
-            $DataSet.Tables[0].Rows | Format-Table -Wrap
+            $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        $Dataset.Tables[0].Rows | Format-Table -Wrap
+        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
     }
 }
 
@@ -1282,7 +1282,7 @@ function test {
                 ORDER BY 1, 2, 3, 4;"
     $DataSet = DataCollector $SqlQuery
     Write-Output "A list of who is in server-level roles"
-    $DataSet.Tables[0].Rows | Format-Table -Wrap
+    $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
     
     # Step 2: Audit roles on each database, defining what they are, what they can do, and who belongs in them
     $SqlQuery ="SELECT @@SERVERNAME AS ServerName,
@@ -1314,14 +1314,14 @@ function test {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $DataSet = DataCollector $SqlQuery
-            $DataSet.Tables[0].Rows | Format-Table -Wrap
+            $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        $Dataset.Tables[0].Rows | Format-Table -Wrap
+        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
     }
 
     # Step 3: Audit the roles that users are in
@@ -1346,14 +1346,14 @@ function test {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $DataSet = DataCollector $SqlQuery
-            $DataSet.Tables[0].Rows | Format-Table -Wrap
+            $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        $Dataset.Tables[0].Rows | Format-Table -Wrap
+        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
     }
 
     # Step 4: Audit any users that have access to specific objects outside of a role
@@ -1392,14 +1392,14 @@ function test {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $DataSet = DataCollector $SqlQuery
-            $DataSet.Tables[0].Rows | Format-Table -Wrap
+            $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000 | Out-String -Width 50000
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        $Dataset.Tables[0].Rows | Format-Table -Wrap
+        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
     }
 }
 
