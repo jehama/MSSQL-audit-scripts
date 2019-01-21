@@ -1271,7 +1271,6 @@ function test {
 
     # Step 1: Audit who is in server-level roles
     $SqlQuery = "SELECT @@SERVERNAME AS ServerName,
-                        DB_NAME() AS DatabaseName,
                         SUSER_NAME(rm.role_principal_id) AS ServerRole,
                         lgn.name AS MemberName
                 FROM sys.server_role_members rm
