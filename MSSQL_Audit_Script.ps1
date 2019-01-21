@@ -1276,10 +1276,7 @@ function test {
                         lgn.name AS MemberName
                 FROM sys.server_role_members rm
                 INNER JOIN sys.server_principals lgn
-                    ON rm.role_principal_id >= 3
-                    AND rm.role_principal_id <= 10
-                    AND rm.member_principal_id = lgn.principal_id
-                ORDER BY 1, 2, 3, 4;"
+                    ON rm.member_principal_id = lgn.principal_id;"
     $DataSet = DataCollector $SqlQuery
     Write-Output "A list of who is in server-level roles"
     $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
