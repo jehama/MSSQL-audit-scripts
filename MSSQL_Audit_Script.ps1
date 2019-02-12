@@ -130,9 +130,9 @@ function Startup {
     CheckFullVersion
     GenerateDatabaseList
 
-    Write-Host "Setup completed in:                     " $Script:Stopwatch.Elapsed
+    Write-Host "Setup completed in:                                  " $Script:Stopwatch.Elapsed
     $Script:TotalTime += $Script:Stopwatch.Elapsed
-    Write-Host "Total time elapsed:                     " $Script:TotalTime
+    Write-Host "Total time elapsed:                                  " $Script:TotalTime
     $Script:Stopwatch.Restart()
 
     Main
@@ -164,25 +164,25 @@ function Main {
     L3.5
     L3.7
 
-    Write-Host "CIS-benchmark completed in:             " $Script:Stopwatch.Elapsed
+    Write-Host "CIS Microsoft SQL Server 2016 benchmark completed in:" $Script:Stopwatch.Elapsed
     $Script:TotalTime += $Script:Stopwatch.Elapsed
-    Write-Host "Total time elapsed:                     " $Script:TotalTime
+    Write-Host "Total time elapsed:                                  " $Script:TotalTime
     $Script:Stopwatch.Restart()
 
     # Obtains all logins and users from the MSSQL Server.
     UserObtainer
 
-    Write-Host "User management part 1 completed in:    " $Script:Stopwatch.Elapsed
+    Write-Host "User management part 1 completed in:                 " $Script:Stopwatch.Elapsed
     $Script:TotalTime += $Script:Stopwatch.Elapsed
-    Write-Host "Total time elapsed:                     " $Script:TotalTime
+    Write-Host "Total time elapsed:                                  " $Script:TotalTime
     $Script:Stopwatch.Restart()
 
     # Used to obtain all users and their rights.
     test
 
-    Write-Host "User management part 2 completed in:    " $Script:Stopwatch.Elapsed
+    Write-Host "User management part 2 completed in:                 " $Script:Stopwatch.Elapsed
     $Script:TotalTime += $Script:Stopwatch.Elapsed
-    Write-Host "Audit has finished, total time elapsed: " $Script:TotalTime
+    Write-Host "Audit has finished, total time elapsed:              " $Script:TotalTime
 }
 
 function SqlConnectionBuilder {
@@ -295,8 +295,7 @@ function L1.1 {
     Checks control L1.1
     
     .DESCRIPTION
-    Checks CIS 4.1
-    Checks CIS 4.2
+    Checks CIS Microsoft SQL Server 2016 benchmark section 4.2
     
     .EXAMPLE
     L1.1
@@ -310,7 +309,7 @@ function L1.1 {
 
     Write-Output "###### Now checking Control L1.1"
 
-    # This check is based on CIS 4.1.
+    # This check is based on CIS Microsoft SQL Server 2016 benchmark section 4.1.
     # Checks if the 'MUST_CHANGE' optino is set 'ON' on all SQL Authenticated Logins.
     # There is currently no query available to check this.
     Write-Output "Check if the 'MUST_CHANGE' option is set to 'ON' for all SQL Authenticated Logins."
@@ -323,7 +322,7 @@ function L1.1 {
     Write-Output "4. Right click on the desired login and select 'Properties'."
     Write-Output "5. Verify the User must change password at next login checkbox is checked.`n"
 
-    # This check is based on CIS 4.2.
+    # This check is based on CIS Microsoft SQL Server 2016 benchmark section 4.2.
     # Checks if the 'CHECK_EXPIRATION'option is set to 'ON' for all SQL Authenticated Logins.
     $SqlQuery = "SELECT l.[name],
                         'sysadmin membership' AS 'Access_Method',
@@ -348,8 +347,8 @@ function L1.2 {
     Checks control L1.2
     
     .DESCRIPTION
-    Checks CIS 3.4
-    Checks CIS 4.3
+    Checks CIS Microsoft SQL Server 2016 benchmark section 3.4
+    Checks CIS Microsoft SQL Server 2016 benchmark section 4.3
     
     .EXAMPLE
     L1.2
@@ -363,7 +362,7 @@ function L1.2 {
 
     Write-Output "###### Now checking Control L1.2"
 
-    # This query is based on CIS 3.4.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.4.
     # Checks if SQL authentication is not used in contained databases.
     $SqlQuery = "SELECT name AS DBUser, authentication_type
                 FROM sys.database_principals
@@ -373,7 +372,7 @@ function L1.2 {
     Write-Output "Check if SQL authentication (authentication_type 2) is not used in contained databases."
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
-    # This query is based on CIS 4.3.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 4.3.
     # Checks if the 'CHECK_POLICY' Option is set to 'True' for all SQL Authenticated Logins.
     $SqlQuery = "SELECT name,
                         is_disabled,
@@ -390,7 +389,7 @@ function L1.3 {
     Checks control L1.3
     
     .DESCRIPTION
-    Checks CIS 3.1
+    Checks CIS Microsoft SQL Server 2016 benchmark section 3.1
     
     .EXAMPLE
     L1.3
@@ -404,7 +403,7 @@ function L1.3 {
 
     Write-Output "###### Now checking Control L1.3"
 
-    # This query is based on CIS 3.1.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.1.
     # Checks if the 'Server Authentication' property is set to 'Windows Authentication Mode'.
     $SqlQuery = "SELECT SERVERPROPERTY('IsIntegratedSecurityOnly') as [login_mode];"
     $Dataset = DataCollector $SqlQuery
@@ -418,8 +417,8 @@ function L2.1 {
     Checks control L2.1
     
     .DESCRIPTION
-    Checks CIS 3.8
-    Checks CIS 3.11
+    Checks CIS Microsoft SQL Server 2016 benchmark section 3.8
+    Checks CIS Microsoft SQL Server 2016 benchmark section 3.11
 
     .EXAMPLE
     L2.1
@@ -433,7 +432,7 @@ function L2.1 {
 
     Write-Output "###### Now checking Control L2.1"
     
-    # This query is based on CIS 3.8.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.8.
     # Checks if only the default permissions specified by Microsoft are granted to the public server role.
     $SqlQuery = "SELECT *
                 FROM master.sys.server_permissions
@@ -449,7 +448,7 @@ function L2.1 {
     Write-Output "state_desc = 'GRANT' and [permission_name] = 'CONNECT' and class_desc = 'ENDPOINT' and major_id = 5)"
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
-    # This query is based on CIS 3.11.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.11.
     # Checks if the 'msdb' user does not have access to the SQL Agent proxies.
     $SqlQuery = "SELECT sp.name AS proxyname
                 FROM dbo.sysproxylogin spl
@@ -478,11 +477,11 @@ function L2.2 {
     Checks control L2.2
     
     .DESCRIPTION
-    Checks CIS 3.5  TODO: implement CIS recommendation
-    Checks CIS 3.6  TODO: implement CIS recommendation
-    Checks CIS 3.7  TODO: implement CIS recommendation
-    Checks CIS 3.9
-    Checks CIS 3.10
+    Checks CIS Microsoft SQL Server 2016 benchmark section 3.5  TODO: implement CIS recommendation
+    Checks CIS Microsoft SQL Server 2016 benchmark section 3.6  TODO: implement CIS recommendation
+    Checks CIS Microsoft SQL Server 2016 benchmark section 3.7  TODO: implement CIS recommendation
+    Checks CIS Microsoft SQL Server 2016 benchmark section 3.9
+    Checks CIS Microsoft SQL Server 2016 benchmark section 3.10
     
     .EXAMPLE
     L2.2
@@ -496,7 +495,7 @@ function L2.2 {
 
     Write-Output "###### Now checking Control L2.2"
     
-    # This query is based on CIS 3.9
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.9
     # Checks if the Windows 'BUILTIN' groups are not SQL Logins.
     $SqlQuery = "SELECT pr.[name],
                         pe.[permission_name],
@@ -509,7 +508,7 @@ function L2.2 {
     Write-Output "Check if none of these logins are Windows BUILTIN groups or accounts.`n"
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
-    # This query is based on CIS 3.10.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.10.
     # Checks if it is not allowed for 'WINDOWS_GROUP' users to be added to the server.
     $SqlQuery = "SELECT pr.[name] AS LocalGroupName,
                         pr.[type_desc],
@@ -531,7 +530,7 @@ function L2.8 {
     Checks control L2.8
     
     .DESCRIPTION
-    Checks CIS 3.3
+    Checks CIS Microsoft SQL Server 2016 benchmark section 3.3
     
     .EXAMPLE
     L2.8
@@ -545,7 +544,7 @@ function L2.8 {
 
     Write-Output "###### Now checking Control L2.8"
     
-    # This query is based on CIS 3.3
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.3
     # Checks if 'Orphaned Users' are dropped from SQL Server Databases.
     $SqlQuery = "EXEC sp_change_users_login @Action='Report';"
     $Dataset = DataCollector $SqlQuery
@@ -565,7 +564,7 @@ function L3.3 {
     Checks control L3.3
     
     .DESCRIPTION
-    Checks CIS 1.1.
+    Checks CIS Microsoft SQL Server 2016 benchmark section 1.1.
     
     .EXAMPLE
     L3.3
@@ -579,7 +578,7 @@ function L3.3 {
 
     Write-Output "###### Now checking Control L3.3"
 
-    # This query is based on CIS 1.1.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 1.1.
     # Checks the productlevel and productversion.
     $SqlQuery = "SELECT SERVERPROPERTY('ProductLevel') as SP_installed,
                         SERVERPROPERTY('ProductVersion') as Version;"
@@ -595,11 +594,11 @@ function L3.4 {
     Checks control 3.4
     
     .DESCRIPTION
-    Checks CIS 2.11
-    Checks CIS 2.13
-    Checks CIS 2.14
-    Checks CIS 2.17
-    Checks CIS 3.2
+    Checks CIS Microsoft SQL Server 2016 benchmark section 2.11
+    Checks CIS Microsoft SQL Server 2016 benchmark section 2.13
+    Checks CIS Microsoft SQL Server 2016 benchmark section 2.14
+    Checks CIS Microsoft SQL Server 2016 benchmark section 2.17
+    Checks CIS Microsoft SQL Server 2016 benchmark section 3.2
     
     .EXAMPLE
     L3.4
@@ -614,7 +613,7 @@ function L3.4 {
 
     Write-Output "###### Now Checking Control L3.4"
 
-    # This query is based on CIS 2.11.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.11.
     # Checks if the MSSQL Server does not use the default port 1433.
     $SqlQuery = "DECLARE @value nvarchar (256);
                 EXECUTE master.dbo.xp_instance_regread
@@ -629,7 +628,7 @@ function L3.4 {
     Write-Output "Check that the server does not use the default TCP_Port 1433."
     $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
     
-    # This query is based on CIS 2.13.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.13.
     # Checks if the default 'sa' account is disabled.
     $SqlQuery = "SELECT sid,
                         name,
@@ -640,7 +639,7 @@ function L3.4 {
     Write-Output "Check if the default 'sa' account is disabled (True)"
     $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
-    # This query is based on CIS 2.14.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.14.
     # Checks if the default 'sa' account is renamed.
     $SqlQuery = "SELECT sid,
                         name,
@@ -652,7 +651,7 @@ function L3.4 {
     Write-Output "If the 'sa' account has already been disabled this check might be skipped."
     $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
-    # This query is based on CIS 2.17.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.17.
     # Checks if no login exists with the name 'sa'.
     $SqlQuery = "SELECT principal_id,
                         name,
@@ -663,7 +662,7 @@ function L3.4 {
     Write-Output "If the principal ID of the sa account is 1 and it is disabled this check  might be skipped."
     $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
-    # This query is based on CIS 3.2.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.2.
     # Checks if the guest user has it's rights revoked on the databases, with the exception of the msdb
     $SqlQuery = "SELECT DB_NAME() AS DatabaseName,
                         'guest' AS Database_User,
@@ -695,22 +694,22 @@ function L3.5 {
     Checks control L3.5
     
     .DESCRIPTION
-    Checks CIS 2.1
-    Checks CIS 2.2
-    Checks CIS 2.3
-    Checks CIS 2.4
-    Checks CIS 2.5
-    Checks CIS 2.6
-    Checks CIS 2.7
-    Checks CIS 2.8
-    Checks CIS 2.9
-    Checks CIS 2.10
-    Checks CIS 2.12
-    Checks CIS 2.15
-    Checks CIS 2.16
-    Checks CIS 6.2
-    Checks CIS 7.1
-    Checks CIS 7.2
+    Checks CIS Microsoft SQL Server 2016 benchmark section 2.1
+    Checks CIS Microsoft SQL Server 2016 benchmark section 2.2
+    Checks CIS Microsoft SQL Server 2016 benchmark section 2.3
+    Checks CIS Microsoft SQL Server 2016 benchmark section 2.4
+    Checks CIS Microsoft SQL Server 2016 benchmark section 2.5
+    Checks CIS Microsoft SQL Server 2016 benchmark section 2.6
+    Checks CIS Microsoft SQL Server 2016 benchmark section 2.7
+    Checks CIS Microsoft SQL Server 2016 benchmark section 2.8
+    Checks CIS Microsoft SQL Server 2016 benchmark section 2.9
+    Checks CIS Microsoft SQL Server 2016 benchmark section 2.10
+    Checks CIS Microsoft SQL Server 2016 benchmark section 2.12
+    Checks CIS Microsoft SQL Server 2016 benchmark section 2.15
+    Checks CIS Microsoft SQL Server 2016 benchmark section 2.16
+    Checks CIS Microsoft SQL Server 2016 benchmark section 6.2
+    Checks CIS Microsoft SQL Server 2016 benchmark section 7.1
+    Checks CIS Microsoft SQL Server 2016 benchmark section 7.2
     
     .EXAMPLE
     L3.5
@@ -725,7 +724,7 @@ function L3.5 {
 
     Write-Output "###### Now checking Control L3.5"
 
-    # This query is based on CIS 2.1.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.1.
     # Checks if the option 'Ad Hoc Distributed Queries' is disabled.
     $SqlQuery = "SELECT name,
                         CAST(value as int) as value_configured,
@@ -736,7 +735,7 @@ function L3.5 {
     Write-Output "Check if 'Add Hoc Distributed Queries' is disabled (0)."
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
-    # This query is based on CIS 2.2.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.2.
     # Checks if the option 'clr enabled' is disabled.
     $SqlQuery = "SELECT name,
                         CAST(value as int) as value_configured,
@@ -747,7 +746,7 @@ function L3.5 {
     Write-Output "Check if 'clr enabled' is disabled (0)."
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
-    # This query is based on CIS 2.3.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.3.
     # Checks if the option 'cross db ownership chaining' is disabled.
     $SqlQuery = "SELECT name,
                         CAST(value as int) as value_configured,
@@ -758,7 +757,7 @@ function L3.5 {
     Write-Output "Check if 'cross db ownership chaining' is disabled (0)."
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
-    # This query is based on CIS 2.4.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.4.
     # Checks if the option 'Database Mail XPs' is disabled.
     $SqlQuery = "SELECT name,
                         CAST(value as int) as value_configured,
@@ -769,7 +768,7 @@ function L3.5 {
     Write-Output "Check if 'Database Mail XPs' is disabled (0)."
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
-    # This query is based on CIS 2.5.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.5.
     # Checks if the option 'Ole Automation Procedures' is disabled.
     $SqlQuery = "SELECT name,
                         CAST(value as int) as value_configured,
@@ -780,7 +779,7 @@ function L3.5 {
     Write-Output "Check if 'Ole Automation Procedures' is disabled (0)."
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
-    # This query is based on CIS 2.6.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.6.
     # Checks if the option 'remote access' is disabled.
     $SqlQuery = "SELECT name,
                         CAST(value as int) as value_configured,
@@ -791,7 +790,7 @@ function L3.5 {
     Write-Output "Check if 'remote access' is disabled (0)."
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
-    # This query is based on CIS 2.7.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.7.
     # Checks if the option 'remote admin connections' is disabled if the server is not in a cluster.
     $SqlQuery = "SELECT name,
                         CAST(value as int) as value_configured,
@@ -808,7 +807,7 @@ function L3.5 {
         Write-Output "This server is in a cluster. Therefore the check for 'remote admin connections' does not apply."
     }
 
-    # This query is based on CIS 2.8.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.8.
     # Checks if the option 'scan for startup procs' is disabled.
     $SqlQuery = "SELECT name,
                         CAST(value as int) as value_configured,
@@ -820,7 +819,7 @@ function L3.5 {
     Write-Output "Note that this option might be enabled to use certain audit traces, stored procedures and replication."
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
-    # This query is based on CIS 2.9.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.9.
     # Checks if the option 'is_trustworthy_on' is disabled.
     $SqlQuery = "SELECT name,
                         is_trustworthy_on
@@ -832,7 +831,7 @@ function L3.5 {
     Write-Output "The 'msdb' database is required to have 'is_trustworthy_on set to True.`n"
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
-    # This check is based on CIS 2.10.
+    # This check is based on CIS Microsoft SQL Server 2016 benchmark section 2.10.
     # There is currently no query available to check this.
     Write-Output "Check if there are no unnecessary SQL Server Protocols are enabled."
     Write-Output "To check this follow the following steps."
@@ -840,7 +839,7 @@ function L3.5 {
     Write-Output "2. Go to the SQL Server Network Configuration."
     Write-Output "3. Ensure that only required protocols are enabled."
 
-    # This query is based on CIS 2.12.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.12.
     # Checks if the server is hidden. If the server is in a cluster it might be necessary to have this turned off.
     $SqlQuery = "DECLARE @getValue INT;
                 EXEC master..xp_instance_regread
@@ -854,7 +853,7 @@ function L3.5 {
     Write-Output "If the server is in a cluster it might be necessary to have this turned off."
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
-    # This query is based on CIS 2.15.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.15.
     # Checks if the option 'xp_cmdshell' is disabled.
     $SqlQuery = "SELECT name,
                         CAST(value as int) as value_configured,
@@ -865,7 +864,7 @@ function L3.5 {
     Write-Output "Check if 'xp_cmdshell' is disabled (0)."
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
-    # This query is based on CIS 2.16.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.16.
     # Checks if the is_auto_close_on option is turned off for contained databases.
     $SqlQuery = "SELECT name,
                         containment,
@@ -879,7 +878,7 @@ function L3.5 {
         $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
     }
 
-    # This query is based on CIS 6.2.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 6.2.
     # Checks if user defined CLR assemblies are set to 'SAFE_ACCESS'.
     $SqlQuery = "SELECT name,
                         permission_set_desc,
@@ -889,7 +888,7 @@ function L3.5 {
     Write-Output "Check if all is_user_defined assemblies have 'SAFE_ACCESS' set under 'permission_set_desc'."
     $Dataset.Tables[0].Rows |Format-Table -Wrap
 
-    # This query is based on CIS 7.1.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 7.1.
     # Checks if 'Symmetric Key encryption algorithm' is set to 'AES_128' or higher.
     $SqlQuery = "SELECT *
                 FROM sys.symmetric_keys;"
@@ -910,7 +909,7 @@ function L3.5 {
         $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
     }
 
-    # This query is based on CIS 7.2.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 7.2.
     # Checks if 'Asymmetric Key Size' is set to 'RSA_2048'.
     $SqlQuery = "SELECT db_name() AS Database_name,
                         name AS Key_Name,
@@ -940,10 +939,10 @@ function L3.7 {
     Checks control L3.7
     
     .DESCRIPTION
-    Checks CIS 5.1
-    Checks CIS 5.2
-    Checks CIS 5.3
-    Checks CIS 5.4
+    Checks CIS Microsoft SQL Server 2016 benchmark section 5.1
+    Checks CIS Microsoft SQL Server 2016 benchmark section 5.2
+    Checks CIS Microsoft SQL Server 2016 benchmark section 5.3
+    Checks CIS Microsoft SQL Server 2016 benchmark section 5.4
     
     .EXAMPLE
     L3.7
@@ -957,7 +956,7 @@ function L3.7 {
 
     Write-Output "###### Now checking Control L3.7"
 
-    # This query is based on CIS 5.1.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 5.1.
     # Checks if the maximum number of error log files is set greater than or equal to 12.
     $SqlQuery = "DECLARE @NumErrorLogs int;
 
@@ -973,7 +972,7 @@ function L3.7 {
     Write-Output "If the number is -1, this might mean that the 'Limit the number of error log files before they are recycled' checkmark is not checked."
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
-    # This query is based on CIS 5.2.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 5.2.
     # Checks if the default trace is enabled.
     $SqlQuery = "SELECT name,
                         CAST(value as int) as value_configured,
@@ -984,7 +983,7 @@ function L3.7 {
     Write-Output "Check if 'default trace enabled' is enabled (1)."
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
-    # This query is based on CIS 5.3.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 5.3.
     # Checks if the 'Login Auditing' is set to 'faled logins'
     $SqlQuery = "EXEC xp_loginconfig 'audit level';"
     $Dataset = DataCollector $SqlQuery
@@ -992,7 +991,7 @@ function L3.7 {
     Write-Output "A value of 'all' is also accepted, however it is recommended to check this with the SQL Server audit feature."
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
-    # This query is based on CIS 5.4.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 5.4.
     # Checks if the 'SQL Server Audit' is set to capture both 'failed' and 'successful logins'.
     $SqlQuery = "SELECT S.name AS 'Audit Name',
                         CASE S.is_state_enabled
