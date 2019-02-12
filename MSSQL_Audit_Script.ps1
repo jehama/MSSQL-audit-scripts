@@ -199,8 +199,7 @@ function SqlConnectionBuilder {
     [CmdletBinding()]
 
     # "Integrated Security = True" means that the connection uses windows authentication.
-    # It uses the credentials of the current user.
-    # Using other credentials or SQL login is currently not supported.
+    # The supplied credentials will be the credentials of owner of the powershell session.
     $Script:SqlConnection = New-Object System.Data.SqlClient.SqlConnection
     if ($WindowsAuthentication) {
         $Script:SqlConnection.ConnectionString = "Server = $Script:Server; Database = $Script:Database; Integrated Security = True;"
@@ -213,7 +212,7 @@ function SqlConnectionBuilder {
 function DataCollector {
     <#
     .SYNOPSIS
-    Collects data from the MSSQL DB.
+    Collects data from the MSSQL instance.
     
     .DESCRIPTION
     Creates an SqlAdapter based on the SQL query and fills it with data.
