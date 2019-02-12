@@ -309,19 +309,6 @@ function L1.1 {
 
     Write-Output "###### Now checking Control L1.1"
 
-    # This check is based on CIS Microsoft SQL Server 2016 benchmark section 4.1.
-    # Checks if the 'MUST_CHANGE' optino is set 'ON' on all SQL Authenticated Logins.
-    # There is currently no query available to check this.
-    Write-Output "Check if the 'MUST_CHANGE' option is set to 'ON' for all SQL Authenticated Logins."
-    Write-Output "This check is only applicable immediately after the login is created or altered to force the password change."
-    Write-Output "Once the password has been changed it is not possible to check if this option has forced the password change."
-    Write-Output "There is currently no automated way to check this."
-    Write-Output "1. Open 'SQL Server Management Studio'."
-    Write-Output "2. Open 'Object Explorer' and connect to the target instance."
-    Write-Output "3. Navigate to the 'Logins' tab in 'Object Explorer' and expand."
-    Write-Output "4. Right click on the desired login and select 'Properties'."
-    Write-Output "5. Verify the User must change password at next login checkbox is checked.`n"
-
     # This check is based on CIS Microsoft SQL Server 2016 benchmark section 4.2.
     # Checks if the 'CHECK_EXPIRATION'option is set to 'ON' for all SQL Authenticated Logins.
     $SqlQuery = "SELECT l.[name],
@@ -338,7 +325,6 @@ function L1.1 {
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if SQL Authenticated Logins have the 'CHECK_EXPIRATION' option set to on."
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
-
 }
 
 function L1.2 {
