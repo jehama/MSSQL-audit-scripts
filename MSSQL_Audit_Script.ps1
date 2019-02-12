@@ -96,13 +96,13 @@ function Startup {
     [CmdletBinding()]
     param()
 
+    Write-Output "#########################`nMSSQL audit tool`n#########################"
+
     # A stopwatch is used to check how long a section of the script has needed to be completed.
     # It is also used to check the total amount of time needed to complete the script.
     $Script:Stopwatch = New-Object -TypeName System.Diagnostics.Stopwatch
     $Script:TotalTime = $Script:Stopwatch.Elapsed
     $Script:Stopwatch.Start()
-
-    Write-Output "#########################`nMSSQL audit tool`n#########################"
 
     # The password will not be visible while typing it in.
     if($SQLAuthentication) {
