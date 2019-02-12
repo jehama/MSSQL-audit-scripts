@@ -259,7 +259,6 @@ function CheckFullVersion {
     $SqlQuery = "SELECT @@VERSION as Version"
     $Dataset = DataCollector $SqlQuery
 
-    # Wrap is used because otherwise the whole value will not be showed in the output.
     Write-Output "The server currently has the following version:"
     $Dataset.Tables[0].Rows | Format-Table -HideTableHeaders -Wrap | Out-String -Width 50000
 }
