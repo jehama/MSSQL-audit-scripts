@@ -256,7 +256,7 @@ function CheckFullVersion {
     #>
     [CmdletBinding()]
 
-    $SqlQuery = "SELECT @@VERSION as Version"
+    $SqlQuery = "SELECT @@VERSION;"
     $Dataset = DataCollector $SqlQuery
 
     Write-Output "The server currently has the following version:"
@@ -270,7 +270,7 @@ function GenerateDatabaseList {
     
     .DESCRIPTION
     Generates a list of databases on the server.
-    This list is used for queries that are used on every database of the server.
+    This list is used for queries that are used on every database on the server.
     
     .EXAMPLE
     GenerateDatabaseList
@@ -282,8 +282,8 @@ function GenerateDatabaseList {
     
     param ()
 
-    $SqlQuery = " SELECT name
-    FROM sys.databases;"
+    $SqlQuery = "SELECT name
+                FROM sys.databases;"
     $Script:ListOfDatabases = DataCollector $SqlQuery
     Write-Output "This server contains the following databases:"
     Write-Output $Script:ListOfDatabases.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
