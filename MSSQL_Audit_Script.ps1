@@ -310,18 +310,41 @@ function L1.1 {
     Write-Output "###### Now checking Control L1.1"
 
     # This check is based on CIS Microsoft SQL Server 2016 benchmark section 4.2.
-    # Checks if the 'CHECK_EXPIRATION'option is set to 'ON' for all SQL Authenticated Logins.
+    # Checks if the 'CHECK_EXPIRATION' option is set to 'ON' for all SQL Authenticated Logins with the sysadmin role.
+    # Checks if the 'CHECK_EXPIRATION' option is set to 'ON' for all SQL Authenticated Logins who have been granted the control server permission.
+    # The second UNION ALL has been added to check users who have been granted the CONTROL SERVER permission through a server role.
     $SqlQuery = "SELECT l.[name],
                         'sysadmin membership' AS 'Access_Method',
                         l.is_expiration_checked
                 FROM sys.sql_logins AS l
+                WHERE IS_SRVROLEMEMBER('sysadmin', name) = 1
                 UNION ALL
                 SELECT l.[name],
                         'CONTROL SERVER' AS 'Access_Method',
                         l.is_expiration_checked
                 FROM sys.sql_logins AS l
                 JOIN sys.server_permissions AS p
-                ON l.principal_id = p.grantee_principal_id;"
+                    ON l.principal_id = p.grantee_principal_id
+                WHERE p.type = 'CL'
+                    AND p.state IN ('G', 'W')
+                UNION ALL
+                SELECT l.[name],
+                        p.[name] +  ' membership' AS 'Access_Method',
+                        l.is_expiration_checked
+                FROM sys.sql_logins AS l
+                JOIN sys.server_role_members AS r
+                    ON l.principal_id = r.member_principal_id
+                JOIN sys.server_principals AS p
+                    ON p.principal_id = r.role_principal_id
+                WHERE r.role_principal_id IN (
+                                                SELECT p.principal_id
+                                                FROM sys.server_principals AS p
+                                                JOIN sys.server_permissions as pe
+                                                    ON p.principal_id = pe.grantee_principal_id
+                                                WHERE pe.type = 'CL'
+                                                    AND p.type = 'R'
+                );"
+
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if SQL Authenticated Logins have the 'CHECK_EXPIRATION' option set to on."
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
