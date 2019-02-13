@@ -372,10 +372,11 @@ function L1.2 {
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.4.
     # Checks if SQL authentication is not used in contained databases.
-    $SqlQuery = "SELECT name AS DBUser, authentication_type
+    $SqlQuery = "SELECT name AS DBUser,
+                        authentication_type
                 FROM sys.database_principals
                 WHERE name NOT IN ('dbo', 'Information_Schema', 'sys', 'guest')
-                AND type IN ('U', 'S', 'G')"
+                    AND type IN ('U', 'S', 'G')"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if SQL authentication (authentication_type 2) is not used in contained databases."
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
