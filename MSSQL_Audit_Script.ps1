@@ -344,7 +344,6 @@ function L1.1 {
                                                 WHERE pe.type = 'CL'
                                                     AND p.type = 'R'
                 );"
-
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if SQL Authenticated Logins have the 'CHECK_EXPIRATION' option set to on."
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
