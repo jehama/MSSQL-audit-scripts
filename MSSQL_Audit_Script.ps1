@@ -376,7 +376,7 @@ function L1.2 {
                         authentication_type
                 FROM sys.database_principals
                 WHERE name NOT IN ('dbo', 'Information_Schema', 'sys', 'guest')
-                    AND type IN ('U', 'S', 'G')"
+                    AND type IN ('U', 'S', 'G');"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if SQL authentication (authentication_type 2) is not used in contained databases."
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
