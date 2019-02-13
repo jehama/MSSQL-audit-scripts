@@ -362,7 +362,7 @@ function L1.2 {
     L1.2
     
     .NOTES
-    Control L1.2 checks if password are adequately enough.
+    Control L1.2 checks if password strength is adequately enough.
     #>
     [CmdletBinding()]
 
