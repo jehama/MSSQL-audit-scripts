@@ -487,9 +487,6 @@ function L2.2 {
     Checks control L2.2
     
     .DESCRIPTION
-    Checks CIS Microsoft SQL Server 2016 benchmark section 3.5  TODO: implement CIS recommendation
-    Checks CIS Microsoft SQL Server 2016 benchmark section 3.6  TODO: implement CIS recommendation
-    Checks CIS Microsoft SQL Server 2016 benchmark section 3.7  TODO: implement CIS recommendation
     Checks CIS Microsoft SQL Server 2016 benchmark section 3.9
     Checks CIS Microsoft SQL Server 2016 benchmark section 3.10
     
