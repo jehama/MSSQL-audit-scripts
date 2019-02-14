@@ -514,7 +514,7 @@ function L2.2 {
                 FROM sys.server_principals AS pr;"
     $Dataset = DataCollector $SqlQuery
     Write-Output "The following list contains all server principals."
-    Write-Output "Check if none of these principals are Windows BUILTIN groups or accounts.`n"
+    Write-Output "Check if none of these principals are Windows BUILTIN groups or accounts."
     Write-Output "Check if there are no WINDOWS_GROUP users. (type_desc = WINDOWS_GROUP and name contains the MachineName)`n"
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 }
