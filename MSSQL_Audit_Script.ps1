@@ -458,7 +458,7 @@ function L2.1 {
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.11.
-    # Checks if the 'public' user does not have access to the SQL Agent proxies.
+    # Checks if the 'public' server role does not have access to the SQL Agent proxies.
     $SqlQuery = "SELECT sp.name AS proxyname
                 FROM dbo.sysproxylogin spl
                 JOIN sys.database_principals dp
