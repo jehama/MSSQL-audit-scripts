@@ -470,8 +470,8 @@ function L2.1 {
     SqlConnectionBuilder
     $Dataset = DataCollector $SqlQuery
     if ($Dataset.Tables[0].Rows.Count -gt 0) {
-        Write-Output "The 'msdb' database's 'public' role has been granted to the following proxies."
-        Write-Output "These proxies may have higher privilages then the 'public' role. Therefore they should be removed.`n"
+        Write-Output "The 'public' serve role has been granted access to the sql agent following proxies."
+        Write-Output "These proxies may have higher privilages then the user calling the proxy. Therefore they should be removed.`n"
         $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
     }
     else {
