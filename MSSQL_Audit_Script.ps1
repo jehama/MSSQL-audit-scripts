@@ -507,31 +507,15 @@ function L2.2 {
     
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.9
     # Checks if the Windows 'BUILTIN' groups are not SQL Logins.
-    $SqlQuery = "SELECT pr.[name],
-                        pe.[permission_name],
-                        pe.[state_desc]
-                FROM sys.server_principals pr
-                JOIN sys.server_permissions pe
-                ON pr.principal_id = pe.grantee_principal_id;"
-    $Dataset = DataCollector $SqlQuery
-    Write-Output "The following groups or accounts have been added as SQL Server Logins."
-    Write-Output "Check if none of these logins are Windows BUILTIN groups or accounts.`n"
-    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
-
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.10.
     # Checks if it is not allowed for 'WINDOWS_GROUP' users to be added to the server.
-    $SqlQuery = "SELECT pr.[name] AS LocalGroupName,
-                        pr.[type_desc],
-                        pe.[permission_name],
-                        pe.[state_desc]
-                FROM sys.server_principals pr
-                JOIN sys.server_permissions pe
-                ON pr.[principal_id] = pe.[grantee_principal_id];"
-                # WHERE pr.[type_desc] = 'WINDOWS_GROUP';"
-                # AND pr.[name] like CAST(SERVERPROPERTY('MachineName') AS nvarchar) +'%';"
+    $SqlQuery = "SELECT pr.[name],
+                        pr.[type_desc]
+                FROM sys.server_principals AS pr;"
     $Dataset = DataCollector $SqlQuery
-    Write-Output "The following groups or accounts have been added as SQL Server Logins."
-    Write-Output "Check if there are no WINDOWS_GROUP users. (type_desc = WINDOWS_GROUP and LocalGroupName contains the MachineName)`n"
+    Write-Output "The following list contains all server principals."
+    Write-Output "Check if none of these principals are Windows BUILTIN groups or accounts.`n"
+    Write-Output "Check if there are no WINDOWS_GROUP users. (type_desc = WINDOWS_GROUP and name contains the MachineName)`n"
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 }
 function L2.8 {
