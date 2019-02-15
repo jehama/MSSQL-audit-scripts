@@ -621,6 +621,8 @@ function L3.4 {
     
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.13.
     # Checks if the default 'sa' account is disabled.
+    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.14.
+    # Checks if the default 'sa' account has been renamed.
     $SqlQuery = "SELECT sid,
                         name,
                         is_disabled
@@ -628,18 +630,7 @@ function L3.4 {
                 WHERE sid = 0x01;"
     $DataSet = DataCollector $SqlQuery
     Write-Output "Check if the default 'sa' account is disabled (True)"
-    $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
-
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.14.
-    # Checks if the default 'sa' account is renamed.
-    $SqlQuery = "SELECT sid,
-                        name,
-                        is_disabled
-                FROM sys.server_principals
-                WHERE sid = 0x01;"
-    $DataSet = DataCollector $SqlQuery
     Write-Output "Check if the default 'sa' account has been renamed."
-    Write-Output "If the 'sa' account has already been disabled this check might be skipped."
     $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.17.
