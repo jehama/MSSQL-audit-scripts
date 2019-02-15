@@ -614,7 +614,7 @@ function L3.4 {
                     @value OUTPUT,
                     N'no_output';
                     
-                SELECT @value AS TCP_Port"
+                SELECT @value AS TCP_Port;"
     $DataSet = DataCollector $SqlQuery
     Write-Output "Check that the server does not use the default TCP_Port 1433."
     $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
