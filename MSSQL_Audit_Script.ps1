@@ -641,7 +641,6 @@ function L3.4 {
                 FROM sys.server_principals;"
     $DataSet = DataCollector $SqlQuery
     Write-Output "Check if no login exists with the name 'sa', even if this is not the original 'sa' account."
-    Write-Output "If the principal ID of the sa account is 1 and it is disabled this check  might be skipped."
     $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.2.
