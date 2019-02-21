@@ -805,8 +805,6 @@ function L3.5 {
     $SqlQuery = "SELECT name,
                         is_trustworthy_on
                 FROM sys.databases;"
-                # WHERE is_trustworthy_on = 1
-                # AND name != 'msdb';"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check for the following databases if they have the (is_trustworthy_on set to False)."
     Write-Output "The 'msdb' database is required to have 'is_trustworthy_on set to True.`n"
