@@ -842,7 +842,6 @@ function L3.5 {
                         containment_desc,
                         is_auto_close_on
                 FROM sys.databases;"
-                # WHERE containment <> 0;"
     $Dataset = DataCollector $SqlQuery
     if ($Dataset.Tables[0].Rows.Count -gt 0) {
         Write-Output "Check if the 'is_auto_close_on' option is set to 'False' for the databases with 'containment' not set to '0'."
