@@ -810,14 +810,6 @@ function L3.5 {
     Write-Output "The 'msdb' database is required to have 'is_trustworthy_on set to True.`n"
     $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
 
-    # This check is based on CIS Microsoft SQL Server 2016 benchmark section 2.10.
-    # There is currently no query available to check this.
-    Write-Output "Check if there are no unnecessary SQL Server Protocols are enabled."
-    Write-Output "To check this follow the following steps."
-    Write-Output "1. Open SQL Server Configuration Manager"
-    Write-Output "2. Go to the SQL Server Network Configuration."
-    Write-Output "3. Ensure that only required protocols are enabled."
-
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.12.
     # Checks if the server is hidden. If the server is in a cluster it might be necessary to have this turned off.
     $SqlQuery = "DECLARE @getValue INT;
