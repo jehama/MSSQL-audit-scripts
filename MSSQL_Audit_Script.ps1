@@ -27,6 +27,11 @@ Specifies to use SQL Authentication when connecting to the MSSQL Server.
 Specifies the username to use when authenticating to the MSSQL Server.
 This parameter is only used when authenticating with SQL Authentication.
 
+.PARAMETER Include
+Specifies which sections of the script to run.
+This parameter is optional. If it is not used the default 'All' will be used.
+Valid options are: 'All','CIS','UserManagement'.
+
 .INPUTS
 None.
 
@@ -43,6 +48,8 @@ This will save the output in a file called output.txt.
 
 .EXAMPLE
 .\MSSQL_Audit_Script.ps1 -Server "Servername" -Database "DatabaseName" -WindowsAuthentication
+
+.\MSSQL_Audit_Script.ps1 -Server "Servername" -Include "CIS,UserManagement" -WindowsAuthentication
 #>
 
 [CmdletBinding()]
@@ -75,7 +82,15 @@ param(
     # This parameter is only used when authenticating with SQL Authentication.
     [parameter(ParameterSetName = "SQLAuthentication", Mandatory = $true)]
     [String]
-    $Username
+    $Username,
+
+    # Specifies the sections of the script to run.
+    # This parameter is optional. If it is not used every section will be ran.
+    [parameter(ParameterSetName = "WindowsAuthentication")]
+    [parameter(ParameterSetName = "SQLAuthentication")]
+    [ValidateSet('All', 'CIS', 'UserManagement')]
+    [String[]]
+    $Include = 'All'
 )
 
 function Startup {
@@ -152,27 +167,35 @@ function Main {
     [CmdletBinding()]
     param()
 
-    # Each function called corresponds to a different standard.
-    L1.1
-    L1.2
-    L1.3
-    L2.1
-    L2.2
-    L2.8
-    L3.3
-    L3.4
-    L3.5
-    L3.7
+    if ($Script:Include -eq 'All' -or $Script:Include -eq 'CIS') {
+        # Each function called corresponds to a different standard.
+        L1.1
+        L1.2
+        L1.3
+        L2.1
+        L2.2
+        L2.8
+        L3.3
+        L3.4
+        L3.5
+        L3.7
 
-    Write-Host "CIS Microsoft SQL Server 2016 benchmark completed in:" $Script:Stopwatch.Elapsed
-    $Script:TotalTime += $Script:Stopwatch.Elapsed
-    Write-Host "Total time elapsed:                                  " $Script:TotalTime
-    $Script:Stopwatch.Restart()
+        Write-Host "CIS Microsoft SQL Server 2016 benchmark completed in:" $Script:Stopwatch.Elapsed
+        $Script:TotalTime += $Script:Stopwatch.Elapsed
+        Write-Host "Total time elapsed:                                  " $Script:TotalTime
+        $Script:Stopwatch.Restart()
+    }
 
-    # Used to obtain all users and their rights.
-    UserManagement
+    if ($Script:Include -eq 'All' -or $Script:Include -eq 'UserManagement') {
+        # Used to obtain all users and their rights.
+        UserManagement
 
-    Write-Host "User management completed in:                        " $Script:Stopwatch.Elapsed
+        Write-Host "User management completed in:                        " $Script:Stopwatch.Elapsed
+        $Script:TotalTime += $Script:Stopwatch.Elapsed
+        Write-Host "Total time elapsed:                                  " $Script:TotalTime
+        $Script:Stopwatch.Restart()
+    }
+
     $Script:TotalTime += $Script:Stopwatch.Elapsed
     Write-Host "Audit has finished, total time elapsed:              " $Script:TotalTime
 }
