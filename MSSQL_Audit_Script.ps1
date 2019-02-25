@@ -169,18 +169,10 @@ function Main {
     Write-Host "Total time elapsed:                                  " $Script:TotalTime
     $Script:Stopwatch.Restart()
 
-    # Obtains all logins and users from the MSSQL Server.
-    UserObtainer
-
-    Write-Host "User management part 1 completed in:                 " $Script:Stopwatch.Elapsed
-    $Script:TotalTime += $Script:Stopwatch.Elapsed
-    Write-Host "Total time elapsed:                                  " $Script:TotalTime
-    $Script:Stopwatch.Restart()
-
     # Used to obtain all users and their rights.
-    test
+    UserManagement
 
-    Write-Host "User management part 2 completed in:                 " $Script:Stopwatch.Elapsed
+    Write-Host "User management completed in:                        " $Script:Stopwatch.Elapsed
     $Script:TotalTime += $Script:Stopwatch.Elapsed
     Write-Host "Audit has finished, total time elapsed:              " $Script:TotalTime
 }
@@ -260,7 +252,7 @@ function CheckFullVersion {
     $Dataset = DataCollector $SqlQuery
 
     Write-Output "The server currently has the following version:"
-    $Dataset.Tables[0].Rows | Format-Table -HideTableHeaders -Wrap | Out-String -Width 50000
+    $Dataset.Tables[0].Rows | Format-Table -HideTableHeaders -Wrap | Out-String -Width 350
 }
 
 function GenerateDatabaseList {
@@ -286,7 +278,7 @@ function GenerateDatabaseList {
                 FROM sys.databases;"
     $Script:ListOfDatabases = DataCollector $SqlQuery
     Write-Output "This server contains the following databases:"
-    Write-Output $Script:ListOfDatabases.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    Write-Output $Script:ListOfDatabases.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 }
 
 function L1.1 {
@@ -346,7 +338,7 @@ function L1.1 {
                 );"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if SQL Authenticated Logins have the 'CHECK_EXPIRATION' option set to on."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 }
 
 function L1.2 {
@@ -379,7 +371,7 @@ function L1.2 {
                     AND type IN ('U', 'S', 'G');"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if SQL authentication (authentication_type 2) is not used in contained databases."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 4.3.
     # Checks if the 'CHECK_POLICY' Option is set to 'True' for all SQL Authenticated Logins.
@@ -389,7 +381,7 @@ function L1.2 {
                 FROM sys.sql_logins;"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if 'is_policy_checked' is set to 'True'."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 }
 
 function L1.3 {
@@ -417,7 +409,7 @@ function L1.3 {
     $SqlQuery = "SELECT SERVERPROPERTY('IsIntegratedSecurityOnly') as [login_mode];"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if 'login_mode' is set to 'Windows Authentication Mode' only (1)."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 }
 
 function L2.1 {
@@ -455,7 +447,7 @@ function L2.1 {
     Write-Output "state_desc = 'GRANT' and [permission_name] = 'CONNECT' and class_desc = 'ENDPOINT' and major_id = 3)"
     Write-Output "state_desc = 'GRANT' and [permission_name] = 'CONNECT' and class_desc = 'ENDPOINT' and major_id = 4)"
     Write-Output "state_desc = 'GRANT' and [permission_name] = 'CONNECT' and class_desc = 'ENDPOINT' and major_id = 5)"
-    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.11.
     # Checks if the 'public' server role does not have access to the SQL Agent proxies.
@@ -472,7 +464,7 @@ function L2.1 {
     if ($Dataset.Tables[0].Rows.Count -gt 0) {
         Write-Output "The 'public' serve role has been granted access to the sql agent following proxies."
         Write-Output "These proxies may have higher privilages then the user calling the proxy. Therefore they should be removed.`n"
-        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
     }
     else {
         Write-Output "The 'msdb' database's 'public' role has not been granted access to proxies.`n"
@@ -513,7 +505,7 @@ function L2.2 {
     Write-Output "The following list contains all server principals."
     Write-Output "Check if none of these principals are Windows BUILTIN groups or accounts."
     Write-Output "Check if there are no WINDOWS_GROUP users. (type_desc = WINDOWS_GROUP and name contains the MachineName)`n"
-    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 }
 function L2.8 {
     <#
@@ -542,7 +534,7 @@ function L2.8 {
     if ($Dataset.Tables[0].Rows.Count -gt 0) {
         Write-Output "The following accounts are 'orphaned'."
         Write-Output "These accounts should probably be removed.`n"
-        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
     }
     else {
         Write-Output "There are no accounts that are 'orphaned'.`n"
@@ -576,7 +568,7 @@ function L3.3 {
     $Dataset = DataCollector $SqlQuery
     Write-Output "The server contains the following Service Pack and Version."
     Write-Output "Check if these match the expected versions."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 }
 
 function L3.4 {
@@ -617,7 +609,7 @@ function L3.4 {
                 SELECT @value AS TCP_Port;"
     $DataSet = DataCollector $SqlQuery
     Write-Output "Check that the server does not use the default TCP_Port 1433."
-    $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
     
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.13.
     # Checks if the default 'sa' account is disabled.
@@ -631,7 +623,7 @@ function L3.4 {
     $DataSet = DataCollector $SqlQuery
     Write-Output "Check if the default 'sa' account is disabled (True)"
     Write-Output "Check if the default 'sa' account has been renamed."
-    $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.17.
     # Checks if no login exists with the name 'sa'.
@@ -641,7 +633,7 @@ function L3.4 {
                 FROM sys.server_principals;"
     $DataSet = DataCollector $SqlQuery
     Write-Output "Check if no login exists with the name 'sa', even if this is not the original 'sa' account."
-    $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.2.
     # Checks if the guest user has it's rights revoked on the databases, with the exception of the msdb
@@ -658,14 +650,14 @@ function L3.4 {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $DataSet = DataCollector $SqlQuery
-            $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+            $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
     }
 }
 
@@ -714,7 +706,7 @@ function L3.5 {
                 WHERE name = 'Ad Hoc Distributed Queries';"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if 'Add Hoc Distributed Queries' is disabled (0)."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.2.
     # Checks if the option 'clr enabled' is disabled.
@@ -725,7 +717,7 @@ function L3.5 {
                 WHERE name = 'clr enabled';"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if 'clr enabled' is disabled (0)."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.3.
     # Checks if the option 'cross db ownership chaining' is disabled.
@@ -736,7 +728,7 @@ function L3.5 {
                 WHERE name = 'cross db ownership chaining';"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if 'cross db ownership chaining' is disabled (0)."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.4.
     # Checks if the option 'Database Mail XPs' is disabled.
@@ -747,7 +739,7 @@ function L3.5 {
                 WHERE name = 'Database Mail XPs';"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if 'Database Mail XPs' is disabled (0)."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.5.
     # Checks if the option 'Ole Automation Procedures' is disabled.
@@ -758,7 +750,7 @@ function L3.5 {
                 WHERE name = 'Ole Automation Procedures';"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if 'Ole Automation Procedures' is disabled (0)."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.6.
     # Checks if the option 'remote access' is disabled.
@@ -769,7 +761,7 @@ function L3.5 {
                 WHERE name = 'remote access';"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if 'remote access' is disabled (0)."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.7.
     # Checks if the option 'remote admin connections' is disabled if the server is not in a cluster.
@@ -782,7 +774,7 @@ function L3.5 {
     $Dataset = DataCollector $SqlQuery
     if ($Dataset.Tables[0].Rows.Count -gt 0) {
         Write-Output "Check if 'remote admin connections' is disabled (0)."
-        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
     }
     else {
         Write-Output "This server is in a cluster. Therefore the check for 'remote admin connections' does not apply."
@@ -798,7 +790,7 @@ function L3.5 {
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if 'scan for startup procs' is disabled (0)"
     Write-Output "Note that this option might be enabled to use certain audit traces, stored procedures and replication."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.9.
     # Checks if the option 'is_trustworthy_on' is disabled.
@@ -808,7 +800,7 @@ function L3.5 {
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check for the following databases if they have the (is_trustworthy_on set to False)."
     Write-Output "The 'msdb' database is required to have 'is_trustworthy_on set to True.`n"
-    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.12.
     # Checks if the server is hidden. If the server is in a cluster it might be necessary to have this turned off.
@@ -822,7 +814,7 @@ function L3.5 {
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if the server is hidden (1)."
     Write-Output "If the server is in a cluster it might be necessary to have this turned off."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.15.
     # Checks if the option 'xp_cmdshell' is disabled.
@@ -833,7 +825,7 @@ function L3.5 {
                 WHERE name = 'xp_cmdshell';"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if 'xp_cmdshell' is disabled (0)."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.16.
     # Checks if the is_auto_close_on option is turned off for contained databases.
@@ -845,7 +837,7 @@ function L3.5 {
     $Dataset = DataCollector $SqlQuery
     if ($Dataset.Tables[0].Rows.Count -gt 0) {
         Write-Output "Check if the 'is_auto_close_on' option is set to 'False' for the databases with 'containment' not set to '0'."
-        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
     }
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 6.2.
@@ -869,14 +861,14 @@ function L3.5 {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $DataSet = DataCollector $SqlQuery
-            $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+            $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
     }
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 7.2.
@@ -892,14 +884,14 @@ function L3.5 {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $DataSet = DataCollector $SqlQuery
-            $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+            $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
     }
 }
 
@@ -940,7 +932,7 @@ function L3.7 {
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if the 'NumberOfLogFiles' is 12 or higher."
     Write-Output "If the number is -1, this might mean that the 'Limit the number of error log files before they are recycled' checkmark is not checked."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 5.2.
     # Checks if the default trace is enabled.
@@ -951,7 +943,7 @@ function L3.7 {
                 WHERE name = 'default trace enabled';"
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if 'default trace enabled' is enabled (1)."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 5.3.
     # Checks if the 'Login Auditing' is set to 'faled logins'
@@ -959,7 +951,7 @@ function L3.7 {
     $Dataset = DataCollector $SqlQuery
     Write-Output "Check if the 'audit level' is configured to failure."
     Write-Output "A value of 'all' is also accepted, however it is recommended to check this with the SQL Server audit feature."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 5.4.
     # Checks if the 'SQL Server Audit' is set to capture both 'failed' and 'successful logins'.
@@ -987,234 +979,10 @@ function L3.7 {
     Write-Output "3 Rows should be returned."
     Write-Output "For these rows check if both the 'Audit Enabled' and 'Audit Specification Enabled' are set to 'Y'."
     Write-Output "Also check if 'audited_result' is set to 'SUCCESS AND FAILURE'."
-    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
 }
 
-function UserObtainer {
-    <#
-    .SYNOPSIS
-    Obtains all logins and users from the MSSQL Server.
-    
-    .DESCRIPTION
-    Obtains all logins and users from the MSSQL Server.
-    
-    .EXAMPLE
-    UserObtainer
-    
-    .NOTES
-    Logins are used for server authentication, and users are used for database authorization.
-    #>
-    [CmdletBinding()]
-
-    param()
-
-    Write-Output "###### Now retrieving all Logins and Users."
-
-    # Maps each login to all it's corresponding database users.
-    $SqlQuery = "EXEC sp_MSloginmappings;"
-    $Dataset = DataCollector $SqlQuery
-    Write-Output "These tables contain every login on the server and their corresponding databases."
-    $Dataset.Tables.Rows | Format-Table -Wrap | Out-String -Width 5000
-
-    Write-Output "###### Now retrieving all databases users and their permissions."
-
-    # Shows all databases and the permissions users have in them.
-    # Currently using a script from stack overflow. 
-    # Obtained from: https://stackoverflow.com/questions/7048839/sql-server-query-to-find-all-permissions-access-for-all-users-in-a-database answer from Sean Rose answered May 4 '15 at 22:04
-    $SqlQuery = "/*
-    Security Audit Report
-    1) List all access provisioned to a SQL user or Windows user/group directly
-    2) List all access provisioned to a SQL user or Windows user/group through a database or application role
-    3) List all access provisioned to the public role
-    
-    Columns Returned:
-    UserType        : Value will be either 'SQL User', 'Windows User', or 'Windows Group'.
-                      This reflects the type of user/group defined for the SQL Server account.
-    DatabaseUserName: Name of the associated user as defined in the database user account.  The database user may not be the
-                      same as the server user.
-    LoginName       : SQL or Windows/Active Directory user account.  This could also be an Active Directory group.
-    Role            : The role name.  This will be null if the associated permissions to the object are defined at directly
-                      on the user account, otherwise this will be the name of the role that the user is a member of.
-    PermissionType  : Type of permissions the user/role has on an object. Examples could include CONNECT, EXECUTE, SELECT
-                      DELETE, INSERT, ALTER, CONTROL, TAKE OWNERSHIP, VIEW DEFINITION, etc.
-                      This value may not be populated for all roles.  Some built in roles have implicit permission
-                      definitions.
-    PermissionState : Reflects the state of the permission type, examples could include GRANT, DENY, etc.
-                      This value may not be populated for all roles.  Some built in roles have implicit permission
-                      definitions.
-    ObjectType      : Type of object the user/role is assigned permissions on.  Examples could include USER_TABLE,
-                      SQL_SCALAR_FUNCTION, SQL_INLINE_TABLE_VALUED_FUNCTION, SQL_STORED_PROCEDURE, VIEW, etc.
-                      This value may not be populated for all roles.  Some built in roles have implicit permission
-                      definitions.
-    Schema          : Name of the schema the object is in.
-    ObjectName      : Name of the object that the user/role is assigned permissions on.
-                      This value may not be populated for all roles.  Some built in roles have implicit permission
-                      definitions.
-    ColumnName      : Name of the column of the object that the user/role is assigned permissions on. This value
-                      is only populated if the object is a table, view or a table value function.
-    */
-    
-        --1) List all access provisioned to a SQL user or Windows user/group directly
-        SELECT
-            [UserType] = CASE princ.[type]
-                             WHEN 'S' THEN 'SQL User'
-                             WHEN 'U' THEN 'Windows User'
-                             WHEN 'G' THEN 'Windows Group'
-                         END,
-            [DatabaseUserName] = princ.[name],
-            [LoginName]        = ulogin.[name],
-            [Role]             = NULL,
-            [PermissionType]   = perm.[permission_name],
-            [PermissionState]  = perm.[state_desc],
-            [ObjectName] = CASE perm.[class]
-            WHEN 3 THEN permschem.[name]       -- Schemas
-            WHEN 4 THEN imp.[name]             -- Impersonations
-            ELSE OBJECT_NAME(perm.[major_id])  -- General objects
-        END,
-            [ObjectType] = CASE perm.[class]
-                               WHEN 1 THEN obj.[type_desc]        -- Schema-contained objects
-                               ELSE perm.[class_desc]             -- Higher-level objects
-                           END,
-            [Schema] = objschem.[name],
-            [ColumnName] = col.[name]
-        FROM
-            --Database user
-            sys.database_principals            AS princ
-            --Login accounts
-            LEFT JOIN sys.server_principals    AS ulogin    ON ulogin.[sid] = princ.[sid]
-            --Permissions
-            LEFT JOIN sys.database_permissions AS perm      ON perm.[grantee_principal_id] = princ.[principal_id]
-            LEFT JOIN sys.schemas              AS permschem ON permschem.[schema_id] = perm.[major_id]
-            LEFT JOIN sys.objects              AS obj       ON obj.[object_id] = perm.[major_id]
-            LEFT JOIN sys.schemas              AS objschem  ON objschem.[schema_id] = obj.[schema_id]
-            --Table columns
-            LEFT JOIN sys.columns              AS col       ON col.[object_id] = perm.[major_id]
-                                                               AND col.[column_id] = perm.[minor_id]
-            --Impersonations
-            LEFT JOIN sys.database_principals  AS imp       ON imp.[principal_id] = perm.[major_id]
-        WHERE
-            princ.[type] IN ('S','U','G')
-            -- No need for these system accounts
-            AND princ.[name] NOT IN ('sys', 'INFORMATION_SCHEMA')
-    
-    UNION
-    
-        --2) List all access provisioned to a SQL user or Windows user/group through a database or application role
-        SELECT
-            [UserType] = CASE membprinc.[type]
-                             WHEN 'S' THEN 'SQL User'
-                             WHEN 'U' THEN 'Windows User'
-                             WHEN 'G' THEN 'Windows Group'
-                         END,
-            [DatabaseUserName] = membprinc.[name],
-            [LoginName]        = ulogin.[name],
-            [Role]             = roleprinc.[name],
-            [PermissionType]   = perm.[permission_name],
-            [PermissionState]  = perm.[state_desc],
-            [ObjectName] = CASE perm.[class]
-            WHEN 3 THEN permschem.[name]       -- Schemas
-            WHEN 4 THEN imp.[name]             -- Impersonations
-            ELSE OBJECT_NAME(perm.[major_id])  -- General objects
-        END,
-            [ObjectType] = CASE perm.[class]
-                               WHEN 1 THEN obj.[type_desc]        -- Schema-contained objects
-                               ELSE perm.[class_desc]             -- Higher-level objects
-                           END,
-            [Schema] = objschem.[name],
-            [ColumnName] = col.[name]
-        FROM
-            --Role/member associations
-            sys.database_role_members          AS members
-            --Roles
-            JOIN      sys.database_principals  AS roleprinc ON roleprinc.[principal_id] = members.[role_principal_id]
-            --Role members (database users)
-            JOIN      sys.database_principals  AS membprinc ON membprinc.[principal_id] = members.[member_principal_id]
-            --Login accounts
-            LEFT JOIN sys.server_principals    AS ulogin    ON ulogin.[sid] = membprinc.[sid]
-            --Permissions
-            LEFT JOIN sys.database_permissions AS perm      ON perm.[grantee_principal_id] = roleprinc.[principal_id]
-            LEFT JOIN sys.schemas              AS permschem ON permschem.[schema_id] = perm.[major_id]
-            LEFT JOIN sys.objects              AS obj       ON obj.[object_id] = perm.[major_id]
-            LEFT JOIN sys.schemas              AS objschem  ON objschem.[schema_id] = obj.[schema_id]
-            --Table columns
-            LEFT JOIN sys.columns              AS col       ON col.[object_id] = perm.[major_id]
-                                                               AND col.[column_id] = perm.[minor_id]
-            --Impersonations
-            LEFT JOIN sys.database_principals  AS imp       ON imp.[principal_id] = perm.[major_id]
-        WHERE
-            membprinc.[type] IN ('S','U','G')
-           -- No need for these system accounts
-            AND membprinc.[name] NOT IN ('sys', 'INFORMATION_SCHEMA')
-    
-    UNION
-    
-        --3) List all access provisioned to the public role, which everyone gets by default
-        SELECT
-            [UserType]         = '{All Users}',
-            [DatabaseUserName] = '{All Users}',
-            [LoginName]        = '{All Users}',
-            [Role]             = roleprinc.[name],
-            [PermissionType]   = perm.[permission_name],
-            [PermissionState]  = perm.[state_desc],
-            [ObjectName] = CASE perm.[class]
-            WHEN 3 THEN permschem.[name]       -- Schemas
-            WHEN 4 THEN imp.[name]             -- Impersonations
-            ELSE OBJECT_NAME(perm.[major_id])  -- General objects
-        END,
-            [ObjectType] = CASE perm.[class]
-                               WHEN 1 THEN obj.[type_desc]        -- Schema-contained objects
-                               ELSE perm.[class_desc]             -- Higher-level objects
-                           END,
-            [Schema] = objschem.[name],
-            [ColumnName] = col.[name]
-        FROM
-            --Roles
-            sys.database_principals            AS roleprinc
-            --Role permissions
-            LEFT JOIN sys.database_permissions AS perm      ON perm.[grantee_principal_id] = roleprinc.[principal_id]
-            LEFT JOIN sys.schemas              AS permschem ON permschem.[schema_id] = perm.[major_id]
-            --All objects
-            JOIN      sys.objects              AS obj       ON obj.[object_id] = perm.[major_id]
-            LEFT JOIN sys.schemas              AS objschem  ON objschem.[schema_id] = obj.[schema_id]
-            --Table columns
-            LEFT JOIN sys.columns              AS col       ON col.[object_id] = perm.[major_id]
-                                                               AND col.[column_id] = perm.[minor_id]
-            --Impersonations
-            LEFT JOIN sys.database_principals  AS imp       ON imp.[principal_id] = perm.[major_id]
-        WHERE
-            roleprinc.[type] = 'R'
-            AND roleprinc.[name] = 'public'
-            AND obj.[is_ms_shipped] = 0
-    
-    ORDER BY
-        [UserType],
-        [DatabaseUserName],
-        [LoginName],
-        [Role],
-        [Schema],
-        [ObjectName],
-        [ColumnName],
-        [PermissionType],
-        [PermissionState],
-        [ObjectType]
-    "
-    if ($Script:AllDatabases) {
-        foreach ($db in $Script:ListOfDatabases.Tables[0]) {
-            $Script:Database = $db.name
-            SqlConnectionBuilder
-            $DataSet = DataCollector $SqlQuery
-            $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
-        }
-        $Script:Database = $Script:OriginalDatabase
-        SqlConnectionBuilder
-    }
-    else {
-        $Dataset = DataCollector $SqlQuery
-        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
-    }
-}
-
-function test {
+function UserManagement {
     <#
     **************************************************************************************************
     *** Server Permissions Audit ***
@@ -1235,19 +1003,70 @@ function test {
     Created: 2010-05-07
     #>
 
-
-    # Step 1: Audit who is in server-level roles
+    # Step 1: Audit who is in server-level roles.
     $SqlQuery = "SELECT @@SERVERNAME AS ServerName,
                         SUSER_NAME(rm.role_principal_id) AS ServerRole,
-                        lgn.name AS MemberName
+                        lgn.name AS MemberName,
+                        lgn.type_desc
                 FROM sys.server_role_members rm
                 INNER JOIN sys.server_principals lgn
-                    ON rm.member_principal_id = lgn.principal_id;"
+                    ON rm.member_principal_id = lgn.principal_id
+                ORDER BY ServerRole,
+                        lgn.type_desc;"
     $DataSet = DataCollector $SqlQuery
     Write-Output "A list of who is in server-level roles"
-    $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+    $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
+
+    # Step 2: Audit the permissions of non-fixed server-level roles.
+    $SqlQuery = "SELECT @@SERVERNAME                        AS ServerName,
+                        pr.name                             AS RoleName,
+                        pe.permission_name,
+                        pe.state_desc,
+                        SUSER_NAME(pe.grantor_principal_id) AS Grantor
+                FROM sys.server_principals AS pr   
+                JOIN sys.server_permissions AS pe   
+                    ON pe.grantee_principal_id = pr.principal_id
+                WHERE pr.type = 'R'
+                ORDER BY pr.principal_id,
+                        pe.state_desc,
+                        pe.permission_name;"
+    $DataSet = DataCollector $SqlQuery
+    Write-Output "A list of Server level roles, defining what they are, and what they can do."
+    Write-Output "Fixed server roles are not shown."
+    $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
     
-    # Step 2: Audit roles on each database, defining what they are, what they can do, and who belongs in them
+    # Step 3: Audit who has access to the database
+    $SqlQuery = "SELECT
+                    @@SERVERNAME                    AS ServerName,
+                    DB_NAME()                       AS DatabaseName, 
+                    p.name                          AS UserName,
+                    USER_NAME(m.role_principal_id)  AS RoleName,
+                    SUSER_SNAME(p.sid)              AS LoginName,
+                    p.type_desc                     AS LoginType
+                FROM
+                    sys.database_principals p
+                LEFT JOIN sys.database_role_members m
+                    ON p.principal_id = m.member_principal_id
+                WHERE p.type IN ('C', 'E', 'G', 'K', 'S', 'U', 'X')
+                ORDER BY RoleName,
+                        Username;"
+    Write-Output "A list of users and the roles they are in."
+    if ($Script:AllDatabases) {
+        foreach ($db in $Script:ListOfDatabases.Tables[0]) {
+            $Script:Database = $db.name
+            SqlConnectionBuilder
+            $DataSet = DataCollector $SqlQuery
+            $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
+        }
+    $Script:Database = $Script:OriginalDatabase
+    SqlConnectionBuilder
+    }
+    else {
+        $Dataset = DataCollector $SqlQuery
+        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
+    }
+    
+    # Step 4: Audit roles on each database, defining what they are, and what they can do.
     $SqlQuery ="SELECT @@SERVERNAME AS ServerName,
                         DB_NAME() AS DatabaseName,
                         dprin.name AS RoleName,
@@ -1270,56 +1089,27 @@ function test {
                 WHERE dprin.name <> 'public'
                 AND dperm.type <> 'CO'
                 AND dprin.type = 'R'
-                ORDER BY 1, 2, 3, 4, 5, 6;"
+                ORDER BY Rolename,
+                        state_desc,
+                        Grantor,
+                        permission_name;"
     Write-Output "Audit roles on each database, defining what they are and what they can do"
     if ($Script:AllDatabases) {
         foreach ($db in $Script:ListOfDatabases.Tables[0]) {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $DataSet = DataCollector $SqlQuery
-            $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+            $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
     }
 
-    # Step 3: Audit the roles that users are in
-    $SqlQuery = "SELECT
-                    @@SERVERNAME    AS ServerName,
-                    DB_NAME()       AS DatabaseName, 
-                    CASE
-                        WHEN (r.principal_id IS NULL) THEN 'PUBLIC'
-                        ELSE                                r.name
-                    END             AS RoleName,
-                    u.name          AS UserName
-                FROM
-                    sys.database_principals u
-                LEFT JOIN (sys.database_role_members m
-                    JOIN sys.database_principals r
-                        ON m.role_principal_id = r.principal_ID)
-                    ON m.member_principal_id = u.principal_id
-                ORDER BY 1, 2, 3, 4;"
-    Write-Output "Audit the roles that users are in"
-    if ($Script:AllDatabases) {
-        foreach ($db in $Script:ListOfDatabases.Tables[0]) {
-            $Script:Database = $db.name
-            SqlConnectionBuilder
-            $DataSet = DataCollector $SqlQuery
-            $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
-        }
-        $Script:Database = $Script:OriginalDatabase
-        SqlConnectionBuilder
-    }
-    else {
-        $Dataset = DataCollector $SqlQuery
-        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
-    }
-
-    # Step 4: Audit any users that have access to specific objects outside of a role
+    # Step 5: Audit any users that have access to specific objects outside of a role
     $SqlQuery = "SELECT
                     @@SERVERNAME                AS ServerName,
                     DB_NAME()                   AS DatabaseName,
@@ -1327,6 +1117,7 @@ function test {
                     ISNULL(o.name, '.')         AS ObjectName,
                     o.type_desc,
                     dprin.NAME                  AS Grantee,
+                    SUSER_SNAME(dprin.sid)          AS LoginName,
                     grantor.name                AS Grantor,
                     dprin.type_desc             AS principal_type_desc,
                     dperm.permission_name,
@@ -1348,21 +1139,24 @@ function test {
                 WHERE dprin.name <> 'public'
                 AND dperm.type <> 'CO'
                 AND dprin.type <> 'R'
-                ORDER BY 1, 2, 3, 4, 5;"
+                ORDER BY Grantee,
+                        Grantor,
+                        Permission_state_desc,
+                        permission_name;"
     Write-Output "Audit any users that have access to specific objects outside of a role"
     if ($Script:AllDatabases) {
         foreach ($db in $Script:ListOfDatabases.Tables[0]) {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $DataSet = DataCollector $SqlQuery
-            $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000 | Out-String -Width 50000
+            $DataSet.Tables[0].Rows | Select-Object * -ExcludeProperty RowError, RowState, Table, ItemArray, HasErrors | Format-Table * | Out-String -Width 350
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 5000
+        $Dataset.Tables[0].Rows | Select-Object * -ExcludeProperty RowError, RowState, Table, ItemArray, HasErrors | Format-Table *
     }
 }
 
