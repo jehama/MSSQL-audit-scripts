@@ -1057,8 +1057,45 @@ function UserManagement {
     Write-Output "A list of Server level roles, defining what they are, and what they can do."
     Write-Output "Fixed server roles are not shown."
     $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
+
+    # Step 3: Audit any Logins that have access to specific objects outside of a role.
+    $SqlQuery = "SELECT
+                    @@SERVERNAME                AS ServerName,
+                    ISNULL(sch.name, osch.name) AS SchemaName,
+                    ISNULL(o.name, '.')         AS ObjectName,
+                    o.type_desc,
+                    sprin.NAME                  AS Grantee,
+                    grantor.name                AS Grantor,
+                    sprin.type_desc             AS principal_type_desc,
+                    sper.permission_name,
+                    sper.state_desc             AS permission_state_desc
+                FROM
+                    sys.server_permissions sper
+                Inner JOIN sys.server_principals sprin
+                    ON sper.grantee_principal_id = sprin.principal_id
+                INNER JOIN sys.server_principals grantor
+                    ON sper.grantor_principal_id = grantor.principal_id
+                LEFT OUTER JOIN sys.schemas sch
+                    ON sper.major_id = sch.schema_id
+                        AND sper.class = 3
+                LEFT OUTER JOIN sys.all_objects o
+                    ON sper.major_id = o.OBJECT_ID
+                        AND sper.class = 1
+                LEFT OUTER JOIN sys.schemas osch
+                    ON o.schema_id = osch.schema_id
+                WHERE sprin.name <> 'public'
+                    AND sper.type <> 'CO'
+                    AND sprin.type <> 'R'
+                ORDER BY
+                    Grantee,
+                    Grantor,
+                    Permission_state_desc,
+                    permission_name;"
+    $DataSet = DataCollector $SqlQuery
+    Write-Output "A list of permissions directly granted or denied to logins."
+    $DataSet.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
     
-    # Step 3: Audit who has access to the database
+    # Step 4: Audit who has access to the database.
     $SqlQuery = "SELECT
                     @@SERVERNAME                    AS ServerName,
                     DB_NAME()                       AS DatabaseName, 
@@ -1089,7 +1126,7 @@ function UserManagement {
         $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
     }
     
-    # Step 4: Audit roles on each database, defining what they are, and what they can do.
+    # Step 5: Audit roles on each database, defining what they are, and what they can do.
     $SqlQuery ="SELECT @@SERVERNAME AS ServerName,
                         DB_NAME() AS DatabaseName,
                         dprin.name AS RoleName,
@@ -1132,7 +1169,7 @@ function UserManagement {
         $Dataset.Tables[0].Rows | Format-Table -Wrap | Out-String -Width 350
     }
 
-    # Step 5: Audit any users that have access to specific objects outside of a role
+    # Step 6: Audit any users that have access to specific objects outside of a role
     $SqlQuery = "SELECT
                     @@SERVERNAME                AS ServerName,
                     DB_NAME()                   AS DatabaseName,
