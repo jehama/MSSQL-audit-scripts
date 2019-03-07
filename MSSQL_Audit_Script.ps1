@@ -641,7 +641,7 @@ function L3.4 {
 
     param ()
 
-    Write-Host "###### Now Checking Control L3.4"
+    Write-Host "###### Now checking Control L3.4"
     HTMLPrinter -OpeningTag "<h3>" -Content "Control L3.4" -ClosingTag "</h3>"
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.11.
@@ -655,9 +655,9 @@ function L3.4 {
                     N'no_output';
                     
                 SELECT @value AS TCP_Port;"
-    $DataSet = DataCollector $SqlQuery
+    $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check that the server does not use the default TCP_Port 1433." -ClosingTag "</p>"
-    HTMLPrinter -Table $DataSet.Tables[0] -Columns @("TCP_Port")
+    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("TCP_Port")
     
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.13.
     # Checks if the default 'sa' account is disabled.
@@ -668,10 +668,10 @@ function L3.4 {
                         is_disabled
                 FROM sys.server_principals
                 WHERE sid = 0x01;"
-    $DataSet = DataCollector $SqlQuery
+    $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if the default 'sa' account is disabled (True)" -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "Check if the default 'sa' account has been renamed." -ClosingTag "</p>"
-    HTMLPrinter -Table $DataSet.Tables[0] -Columns @("sid", "name", "is_disabled")
+    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("sid", "name", "is_disabled")
  
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.17.
     # Checks if no login exists with the name 'sa'.
@@ -679,9 +679,9 @@ function L3.4 {
                         name,
                         is_disabled
                 FROM sys.server_principals;"
-    $DataSet = DataCollector $SqlQuery
+    $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if no login exists with the name 'sa', even if this is not the original 'sa' account." -ClosingTag "</p>"
-    HTMLPrinter -Table $DataSet.Tables[0] -Columns @("principal_id", "name", "is_disabled")
+    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("principal_id", "name", "is_disabled")
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.2.
     # Checks if the guest user has it's rights revoked on the databases, with the exception of the msdb
@@ -697,15 +697,15 @@ function L3.4 {
         foreach ($db in $Script:ListOfDatabases.Tables[0]) {
             $Script:Database = $db.name
             SqlConnectionBuilder
-            $DataSet = DataCollector $SqlQuery
-            HTMLPrinter -Table $DataSet.Tables[0] -Columns @("DatabaseName", "Database_User", "permission_name", "state_desc")
+            $Dataset = DataCollector $SqlQuery
+            HTMLPrinter -Table $Dataset.Tables[0] -Columns @("DatabaseName", "Database_User", "permission_name", "state_desc")
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        HTMLPrinter -Table $DataSet.Tables[0] -Columns @("DatabaseName", "Database_User", "permission_name", "state_desc")
+        HTMLPrinter -Table $Dataset.Tables[0] -Columns @("DatabaseName", "Database_User", "permission_name", "state_desc")
     }
 }
 
@@ -897,7 +897,7 @@ function L3.5 {
         foreach ($db in $Script:ListOfDatabases.Tables[0]) {
             $Script:Database = $db.name
             SqlConnectionBuilder
-            $DataSet = DataCollector $SqlQuery
+            $Dataset = DataCollector $SqlQuery
             HTMLPrinter -Table $Dataset.Tables[0] -Columns @("*")
         }
         $Script:Database = $Script:OriginalDatabase
@@ -920,7 +920,7 @@ function L3.5 {
         foreach ($db in $Script:ListOfDatabases.Tables[0]) {
             $Script:Database = $db.name
             SqlConnectionBuilder
-            $DataSet = DataCollector $SqlQuery
+            $Dataset = DataCollector $SqlQuery
             HTMLPrinter -Table $Dataset.Tables[0] -Columns @("Database_name", "Key_Name", "key_length")
         }
         $Script:Database = $Script:OriginalDatabase
@@ -1054,9 +1054,9 @@ function UserManagement {
                     ON rm.member_principal_id = lgn.principal_id
                 ORDER BY ServerRole,
                         lgn.type_desc;"
-    $DataSet = DataCollector $SqlQuery
+    $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "A list of who is in server-level roles" -ClosingTag "</p>"
-    HTMLPrinter -Table $DataSet.Tables[0] -Columns @("ServerName", "ServerRole", "MemberName", "type_desc")
+    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("ServerName", "ServerRole", "MemberName", "type_desc")
 
     # Step 2: Audit the permissions of non-fixed server-level roles.
     $SqlQuery = "SELECT @@SERVERNAME                        AS ServerName,
@@ -1071,10 +1071,10 @@ function UserManagement {
                 ORDER BY pr.principal_id,
                         pe.state_desc,
                         pe.permission_name;"
-    $DataSet = DataCollector $SqlQuery
+    $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "A list of Server level roles, defining what they are, and what they can do." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "Fixed server roles are not shown." -ClosingTag "</p>"
-    HTMLPrinter -Table $DataSet.Tables[0] -Columns @("ServerName", "RoleName", "permission_name", "state_desc", "Grantor")
+    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("ServerName", "RoleName", "permission_name", "state_desc", "Grantor")
 
     # Step 3: Audit any Logins that have access to specific objects outside of a role.
     $SqlQuery = "SELECT
@@ -1109,9 +1109,9 @@ function UserManagement {
                     Grantor,
                     Permission_state_desc,
                     permission_name;"
-    $DataSet = DataCollector $SqlQuery
+    $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "A list of permissions directly granted or denied to logins." -ClosingTag "</p>"
-    HTMLPrinter -Table $DataSet.Tables[0] -Columns @("ServerName", "SchemaName", "ObjectName", "type_desc", "Grantee", "Grantor", "principal_type_desc", "permission_name", "permission_state_desc")
+    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("ServerName", "SchemaName", "ObjectName", "type_desc", "Grantee", "Grantor", "principal_type_desc", "permission_name", "permission_state_desc")
 
     # Step 4: Audit who has access to the database.
     $SqlQuery = "SELECT
@@ -1133,15 +1133,15 @@ function UserManagement {
         foreach ($db in $Script:ListOfDatabases.Tables[0]) {
             $Script:Database = $db.name
             SqlConnectionBuilder
-            $DataSet = DataCollector $SqlQuery
-            HTMLPrinter -Table $DataSet.Tables[0] -Columns @("ServerName", "DatabaseName", "UserName", "RoleName", "LoginName", "LoginType")
+            $Dataset = DataCollector $SqlQuery
+            HTMLPrinter -Table $Dataset.Tables[0] -Columns @("ServerName", "DatabaseName", "UserName", "RoleName", "LoginName", "LoginType")
         }
     $Script:Database = $Script:OriginalDatabase
     SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        HTMLPrinter -Table $DataSet.Tables[0] -Columns @("ServerName", "DatabaseName", "UserName", "RoleName", "LoginName", "LoginType")
+        HTMLPrinter -Table $Dataset.Tables[0] -Columns @("ServerName", "DatabaseName", "UserName", "RoleName", "LoginName", "LoginType")
     }
     
     # Step 5: Audit roles on each database, defining what they are, and what they can do.
@@ -1177,15 +1177,15 @@ function UserManagement {
         foreach ($db in $Script:ListOfDatabases.Tables[0]) {
             $Script:Database = $db.name
             SqlConnectionBuilder
-            $DataSet = DataCollector $SqlQuery
-            HTMLPrinter -Table $DataSet.Tables[0] -Columns @("ServerName", "DatabaseName", "RoleName", "SchemaName", "ObjectName", "permission_name", "state_desc", "Grantor")
+            $Dataset = DataCollector $SqlQuery
+            HTMLPrinter -Table $Dataset.Tables[0] -Columns @("ServerName", "DatabaseName", "RoleName", "SchemaName", "ObjectName", "permission_name", "state_desc", "Grantor")
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        HTMLPrinter -Table $DataSet.Tables[0] -Columns @("ServerName", "DatabaseName", "RoleName", "SchemaName", "ObjectName", "permission_name", "state_desc", "Grantor")
+        HTMLPrinter -Table $Dataset.Tables[0] -Columns @("ServerName", "DatabaseName", "RoleName", "SchemaName", "ObjectName", "permission_name", "state_desc", "Grantor")
     }
 
     # Step 6: Audit any users that have access to specific objects outside of a role
@@ -1227,15 +1227,15 @@ function UserManagement {
         foreach ($db in $Script:ListOfDatabases.Tables[0]) {
             $Script:Database = $db.name
             SqlConnectionBuilder
-            $DataSet = DataCollector $SqlQuery
-            HTMLPrinter -Table $DataSet.Tables[0] -Columns @("ServerName", "DatabaseName", "SchemaName", "ObjectName", "type_desc", "Grantee", "LoginName", "Grantor", "principal_type_desc", "permission_name", "permission_state_desc")
+            $Dataset = DataCollector $SqlQuery
+            HTMLPrinter -Table $Dataset.Tables[0] -Columns @("ServerName", "DatabaseName", "SchemaName", "ObjectName", "type_desc", "Grantee", "LoginName", "Grantor", "principal_type_desc", "permission_name", "permission_state_desc")
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        HTMLPrinter -Table $DataSet.Tables[0] -Columns @("ServerName", "DatabaseName", "SchemaName", "ObjectName", "type_desc", "Grantee", "LoginName", "Grantor", "principal_type_desc", "permission_name", "permission_state_desc")
+        HTMLPrinter -Table $Dataset.Tables[0] -Columns @("ServerName", "DatabaseName", "SchemaName", "ObjectName", "type_desc", "Grantee", "LoginName", "Grantor", "principal_type_desc", "permission_name", "permission_state_desc")
     }
 }
 
