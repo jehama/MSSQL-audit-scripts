@@ -407,14 +407,36 @@ function L1.2 {
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.4.
     # Checks if SQL authentication is not used in contained databases.
-    $SqlQuery = "SELECT name AS DBUser,
+    $SqlQuery = "SELECT 
+                        DB_NAME() AS DatabaseName,
+                        name AS DBUser,
                         authentication_type
                 FROM sys.database_principals
                 WHERE name NOT IN ('dbo', 'Information_Schema', 'sys', 'guest')
                     AND type IN ('U', 'S', 'G');"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if SQL authentication (authentication_type 2) is not used in contained databases." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("DBUser", "authentication_type")
+    if ($Script:AllDatabases) {
+        foreach ($db in $Script:ListOfDatabases) {
+            if($db.containment -eq 1){
+                $Script:Database = $db.name
+                SqlConnectionBuilder
+                $Dataset = DataCollector $SqlQuery
+                HTMLPrinter -OpeningTag "<p>" -Content "Check if SQL authentication (authentication_type 2) is not used in this contained databases." -ClosingTag "</p>"
+                HTMLPrinter -Table $Dataset -Columns @("DatabaseName", "DBUser", "authentication_type")
+            }
+        }
+        $Script:Database = $Script:OriginalDatabase
+        SqlConnectionBuilder
+    }
+    else {
+        if($db.containment -eq 1){
+            $Dataset = DataCollector $SqlQuery
+            HTMLPrinter -OpeningTag "<p>" -Content "Check if SQL authentication (authentication_type 2) is not used in this contained databases." -ClosingTag "</p>"
+            HTMLPrinter -Table $Dataset -Columns @("DBUser", "authentication_type")
+        }
+        else {
+            HTMLPrinter -OpeningTag "<p>" -Content "This database is not a contained database." -ClosingTag "</p>"
+        }
+    }
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 4.3.
     # Checks if the 'CHECK_POLICY' Option is set to 'True' for all SQL Authenticated Logins.
