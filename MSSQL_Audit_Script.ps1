@@ -312,12 +312,13 @@ function GenerateDatabaseList {
     
     param ()
 
-    $SqlQuery = "SELECT name AS Name
+    $SqlQuery = "SELECT *
                 FROM sys.databases;"
-    $Script:ListOfDatabases = DataCollector $SqlQuery
+    $Temp = DataCollector $SqlQuery
+    $Script:ListOfDatabases = $Temp.Tables[0]
 
     HTMLPrinter -OpeningTag "<h3>" -Content "This server contains the following databases:" -ClosingTag "</h3>"
-    HTMLPrinter -Table $ListOfDatabases.Tables[0] -Columns @("Name")
+    HTMLPrinter -Table $ListOfDatabases -Columns @("Name")
 }
 
 function L1.1 {
@@ -842,13 +843,9 @@ function L3.5 {
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.9.
     # Checks if the option 'is_trustworthy_on' is disabled.
-    $SqlQuery = "SELECT name,
-                        is_trustworthy_on
-                FROM sys.databases;"
-    $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check for the following databases if they have the (is_trustworthy_on set to False)." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "The 'msdb' database is required to have 'is_trustworthy_on set to True.`n" -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("name", "is_trustworthy_on")
+    HTMLPrinter -Table $Script:ListOfDatabases -Columns @("name", "is_trustworthy_on")
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.12.
     # Checks if the server is hidden. If the server is in a cluster it might be necessary to have this turned off.
@@ -877,14 +874,8 @@ function L3.5 {
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.16.
     # Checks if the is_auto_close_on option is turned off for contained databases.
-    $SqlQuery = "SELECT name,
-                        containment,
-                        containment_desc,
-                        is_auto_close_on
-                FROM sys.databases;"
-    $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if the 'is_auto_close_on' option is set to 'False' for the databases with 'containment' not set to '0'." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("name", "containment", "containment_desc", "is_auto_close_on")
+    HTMLPrinter -Table $Script:ListOfDatabases -Columns @("name", "containment", "containment_desc", "is_auto_close_on")
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 6.2.
     # Checks if user defined CLR assemblies are set to 'SAFE_ACCESS'.
