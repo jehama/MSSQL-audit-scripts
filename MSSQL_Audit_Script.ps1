@@ -267,9 +267,11 @@ function DataCollector {
     $SQLAdapter = New-Object System.Data.SqlClient.SqlDataAdapter
     $SQLAdapter.SelectCommand = $SQLCommand
     $Dataset = New-Object System.Data.DataSet
-    $SqlAdapter.Fill($Dataset)
+    $SqlAdapter.Fill($Dataset) | Out-Null
+    $DataTable = New-Object System.Data.DataTable
+    $DataTable = $Dataset.Tables[0]
 
-    $Dataset 
+    ,$DataTable
 }
 
 function CheckFullVersion {
@@ -290,7 +292,7 @@ function CheckFullVersion {
     $Dataset = DataCollector $SqlQuery
 
     HTMLPrinter -OpeningTag "<h3>" -Content "Server version:" -ClosingTag "</h3>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("Version")
+    HTMLPrinter -Table $Dataset -Columns @("Version")
 }
 
 function GenerateDatabaseList {
@@ -314,8 +316,7 @@ function GenerateDatabaseList {
 
     $SqlQuery = "SELECT *
                 FROM sys.databases;"
-    $Temp = DataCollector $SqlQuery
-    $Script:ListOfDatabases = $Temp.Tables[0]
+    $Script:ListOfDatabases = DataCollector $SqlQuery
 
     HTMLPrinter -OpeningTag "<h3>" -Content "This server contains the following databases:" -ClosingTag "</h3>"
     HTMLPrinter -Table $ListOfDatabases -Columns @("Name")
@@ -379,7 +380,7 @@ function L1.1 {
                 );"
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if SQL Authenticated Logins have the 'CHECK_EXPIRATION' option set to on." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("Name", "Access_Method", "is_expiration_checked")
+    HTMLPrinter -Table $Dataset -Columns @("Name", "Access_Method", "is_expiration_checked")
 }
 
 function L1.2 {
@@ -413,7 +414,7 @@ function L1.2 {
                     AND type IN ('U', 'S', 'G');"
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if SQL authentication (authentication_type 2) is not used in contained databases." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("DBUser", "authentication_type")
+    HTMLPrinter -Table $Dataset -Columns @("DBUser", "authentication_type")
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 4.3.
     # Checks if the 'CHECK_POLICY' Option is set to 'True' for all SQL Authenticated Logins.
@@ -423,7 +424,7 @@ function L1.2 {
                 FROM sys.sql_logins;"
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'is_policy_checked' is set to 'True'." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("name", "is_disabled", "is_policy_checked")
+    HTMLPrinter -Table $Dataset -Columns @("name", "is_disabled", "is_policy_checked")
 }
 
 function L1.3 {
@@ -452,7 +453,7 @@ function L1.3 {
     $SqlQuery = "SELECT SERVERPROPERTY('IsIntegratedSecurityOnly') as [login_mode];"
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'login_mode' is set to 'Windows Authentication Mode' only (1)." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("login_mode")
+    HTMLPrinter -Table $Dataset -Columns @("login_mode")
 }
 
 function L2.1 {
@@ -491,7 +492,7 @@ function L2.1 {
     HTMLPrinter -OpeningTag "<p>" -Content "state_desc = 'GRANT' and [permission_name] = 'CONNECT' and class_desc = 'ENDPOINT' and major_id = 3)" -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "state_desc = 'GRANT' and [permission_name] = 'CONNECT' and class_desc = 'ENDPOINT' and major_id = 4)" -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "state_desc = 'GRANT' and [permission_name] = 'CONNECT' and class_desc = 'ENDPOINT' and major_id = 5)" -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("class", "class_desc", "major_id", "minor_id", "grantee_principal_id", "grantor_principal_id", "type", "permission_name", "state", "state_desc")
+    HTMLPrinter -Table $Dataset -Columns @("class", "class_desc", "major_id", "minor_id", "grantee_principal_id", "grantor_principal_id", "type", "permission_name", "state", "state_desc")
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.11.
     # Checks if the 'public' server role does not have access to the SQL Agent proxies.
@@ -505,10 +506,10 @@ function L2.1 {
     $Script:Database = "msdb"
     SqlConnectionBuilder
     $Dataset = DataCollector $SqlQuery
-    if ($Dataset.Tables[0].Rows.Count -gt 0) {
+    if ($Dataset.Rows.Count -gt 0) {
         HTMLPrinter -OpeningTag "<p>" -Content "The 'public' serve role has been granted access to the sql agent following proxies." -ClosingTag "</p>"
         HTMLPrinter -OpeningTag "<p>" -Content "These proxies may have higher privilages then the user calling the proxy. Therefore they should be removed.`n" -ClosingTag "</p>"
-        HTMLPrinter -Table $Dataset.Tables[0] -Columns @("proxyname")
+        HTMLPrinter -Table $Dataset -Columns @("proxyname")
     }
     else {
         HTMLPrinter -OpeningTag "<p>" -Content "The 'msdb' database's 'public' role has not been granted access to proxies.`n" -ClosingTag "</p>"
@@ -550,7 +551,7 @@ function L2.2 {
     HTMLPrinter -OpeningTag "<p>" -Content "The following list contains all server principals." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "Check if none of these principals are Windows BUILTIN groups or accounts." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "Check if there are no WINDOWS_GROUP users. (type_desc = WINDOWS_GROUP and name contains the MachineName)`n" -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("name", "type_desc")
+    HTMLPrinter -Table $Dataset -Columns @("name", "type_desc")
 }
 function L2.8 {
     <#
@@ -577,10 +578,10 @@ function L2.8 {
     # Checks if 'Orphaned Users' are dropped from SQL Server Databases.
     $SqlQuery = "EXEC sp_change_users_login @Action='Report';"
     $Dataset = DataCollector $SqlQuery
-    if ($Dataset.Tables[0].Rows.Count -gt 0) {
+    if ($Dataset.Rows.Count -gt 0) {
         HTMLPrinter -OpeningTag "<p>" -Content "The following accounts are 'orphaned'." -ClosingTag "</p>"
         HTMLPrinter -OpeningTag "<p>" -Content "These accounts should probably be removed.`n" -ClosingTag "</p>"
-        HTMLPrinter -Table $Dataset.Tables[0] -Columns @("UserName", "UserSID")
+        HTMLPrinter -Table $Dataset -Columns @("UserName", "UserSID")
     }
     else {
         HTMLPrinter -OpeningTag "<p>" -Content "There are no accounts that are 'orphaned'.`n" -ClosingTag "</p>"
@@ -615,7 +616,7 @@ function L3.3 {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "The server contains the following Service Pack and Version." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "Check if these match the expected versions." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("SP_installed", "Version")
+    HTMLPrinter -Table $Dataset -Columns @("SP_installed", "Version")
 }
 
 function L3.4 {
@@ -657,7 +658,7 @@ function L3.4 {
                 SELECT @value AS TCP_Port;"
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check that the server does not use the default TCP_Port 1433." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("TCP_Port")
+    HTMLPrinter -Table $Dataset -Columns @("TCP_Port")
     
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.13.
     # Checks if the default 'sa' account is disabled.
@@ -671,7 +672,7 @@ function L3.4 {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if the default 'sa' account is disabled (True)" -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "Check if the default 'sa' account has been renamed." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("sid", "name", "is_disabled")
+    HTMLPrinter -Table $Dataset -Columns @("sid", "name", "is_disabled")
  
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.17.
     # Checks if no login exists with the name 'sa'.
@@ -681,7 +682,7 @@ function L3.4 {
                 FROM sys.server_principals;"
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if no login exists with the name 'sa', even if this is not the original 'sa' account." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("principal_id", "name", "is_disabled")
+    HTMLPrinter -Table $Dataset -Columns @("principal_id", "name", "is_disabled")
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.2.
     # Checks if the guest user has it's rights revoked on the databases, with the exception of the msdb
@@ -694,18 +695,18 @@ function L3.4 {
     HTMLPrinter -OpeningTag "<p>" -Content "Check for each of the following databases if the 'CONNECT' permission has been revoked for the 'guest' user." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "The connect permission is required for the 'master', 'tempdb', 'msdb' databases. Therefore they can be ignored." -ClosingTag "</p>"
     if ($Script:AllDatabases) {
-        foreach ($db in $Script:ListOfDatabases.Tables[0]) {
+        foreach ($db in $Script:ListOfDatabases) {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $Dataset = DataCollector $SqlQuery
-            HTMLPrinter -Table $Dataset.Tables[0] -Columns @("DatabaseName", "Database_User", "permission_name", "state_desc")
+            HTMLPrinter -Table $Dataset -Columns @("DatabaseName", "Database_User", "permission_name", "state_desc")
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        HTMLPrinter -Table $Dataset.Tables[0] -Columns @("DatabaseName", "Database_User", "permission_name", "state_desc")
+        HTMLPrinter -Table $Dataset -Columns @("DatabaseName", "Database_User", "permission_name", "state_desc")
     }
 }
 
@@ -755,7 +756,7 @@ function L3.5 {
                 WHERE name = 'Ad Hoc Distributed Queries';"
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'Add Hoc Distributed Queries' is disabled (0)." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("name", "value_configured", "value_in_use")
+    HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.2.
     # Checks if the option 'clr enabled' is disabled.
@@ -766,7 +767,7 @@ function L3.5 {
                 WHERE name = 'clr enabled';"
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'clr enabled' is disabled (0)." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("name", "value_configured", "value_in_use")
+    HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.3.
     # Checks if the option 'cross db ownership chaining' is disabled.
@@ -777,7 +778,7 @@ function L3.5 {
                 WHERE name = 'cross db ownership chaining';"
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'cross db ownership chaining' is disabled (0)." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("name", "value_configured", "value_in_use")
+    HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.4.
     # Checks if the option 'Database Mail XPs' is disabled.
@@ -788,7 +789,7 @@ function L3.5 {
                 WHERE name = 'Database Mail XPs';"
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'Database Mail XPs' is disabled (0)." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("name", "value_configured", "value_in_use")
+    HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.5.
     # Checks if the option 'Ole Automation Procedures' is disabled.
@@ -799,7 +800,7 @@ function L3.5 {
                 WHERE name = 'Ole Automation Procedures';"
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'Ole Automation Procedures' is disabled (0)." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("name", "value_configured", "value_in_use")
+    HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.6.
     # Checks if the option 'remote access' is disabled.
@@ -810,7 +811,7 @@ function L3.5 {
                 WHERE name = 'remote access';"
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'remote access' is disabled (0)." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("name", "value_configured", "value_in_use")
+    HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.7.
     # Checks if the option 'remote admin connections' is disabled if the server is not in a cluster.
@@ -821,9 +822,9 @@ function L3.5 {
                 WHERE name = 'remote admin connections'
                 AND SERVERPROPERTY('IsClustered') = 0;"
     $Dataset = DataCollector $SqlQuery
-    if ($Dataset.Tables[0].Rows.Count -gt 0) {
+    if ($Dataset.Rows.Count -gt 0) {
         HTMLPrinter -OpeningTag "<p>" -Content "Check if 'remote admin connections' is disabled (0)." -ClosingTag "</p>"
-        HTMLPrinter -Table $Dataset.Tables[0] -Columns @("name", "value_configured", "value_in_use")
+        HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
     }
     else {
         HTMLPrinter -OpeningTag "<p>" -Content "This server is in a cluster. Therefore the check for 'remote admin connections' does not apply." -ClosingTag "</p>"
@@ -839,7 +840,7 @@ function L3.5 {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'scan for startup procs' is disabled (0)" -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "Note that this option might be enabled to use certain audit traces, stored procedures and replication." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("name", "value_configured", "value_in_use")
+    HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.9.
     # Checks if the option 'is_trustworthy_on' is disabled.
@@ -859,7 +860,7 @@ function L3.5 {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if the server is hidden (1)." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "If the server is in a cluster it might be necessary to have this turned off." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("is_hidden", "is_in_cluster")
+    HTMLPrinter -Table $Dataset -Columns @("is_hidden", "is_in_cluster")
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.15.
     # Checks if the option 'xp_cmdshell' is disabled.
@@ -870,7 +871,7 @@ function L3.5 {
                 WHERE name = 'xp_cmdshell';"
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'xp_cmdshell' is disabled (0)." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("name", "value_configured", "value_in_use")
+    HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.16.
     # Checks if the is_auto_close_on option is turned off for contained databases.
@@ -885,7 +886,7 @@ function L3.5 {
                 FROM sys.assemblies;"
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if all is_user_defined assemblies have 'SAFE_ACCESS' set under 'permission_set_desc'." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("name", "permission_set_desc", "is_user_defined")
+    HTMLPrinter -Table $Dataset -Columns @("name", "permission_set_desc", "is_user_defined")
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 7.1.
     # Checks if 'Symmetric Key encryption algorithm' is set to 'AES_128' or higher.
@@ -894,18 +895,18 @@ function L3.5 {
     HTMLPrinter -OpeningTag "<p>" -Content "Check for every databse if the 'algorithm_desc' is set to 'AES_128', 'AES_192' or 'AES_256'." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "If no output is returned for a database then this means that no symmetric key is available for that database.`n" -ClosingTag "</p>"
     if ($Script:AllDatabases) {
-        foreach ($db in $Script:ListOfDatabases.Tables[0]) {
+        foreach ($db in $Script:ListOfDatabases) {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $Dataset = DataCollector $SqlQuery
-            HTMLPrinter -Table $Dataset.Tables[0] -Columns @("*")
+            HTMLPrinter -Table $Dataset -Columns @("*")
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        HTMLPrinter -Table $Dataset.Tables[0] -Columns @("*")
+        HTMLPrinter -Table $Dataset -Columns @("*")
     }
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 7.2.
@@ -917,18 +918,18 @@ function L3.5 {
     HTMLPrinter -OpeningTag "<p>" -Content "Check for every databse if the 'key_length' is set to '2048'." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "If no output is returned for a database then this means that no asymmetric key is available for that database.`n" -ClosingTag "</p>"
     if ($Script:AllDatabases) {
-        foreach ($db in $Script:ListOfDatabases.Tables[0]) {
+        foreach ($db in $Script:ListOfDatabases) {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $Dataset = DataCollector $SqlQuery
-            HTMLPrinter -Table $Dataset.Tables[0] -Columns @("Database_name", "Key_Name", "key_length")
+            HTMLPrinter -Table $Dataset -Columns @("Database_name", "Key_Name", "key_length")
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        HTMLPrinter -Table $Dataset.Tables[0] -Columns @("Database_name", "Key_Name", "key_length")
+        HTMLPrinter -Table $Dataset -Columns @("Database_name", "Key_Name", "key_length")
     }
 }
 
@@ -970,7 +971,7 @@ function L3.7 {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if the 'NumberOfLogFiles' is 12 or higher." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "If the number is -1, this might mean that the 'Limit the number of error log files before they are recycled' checkmark is not checked." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("NumberOfLogFiles")
+    HTMLPrinter -Table $Dataset -Columns @("NumberOfLogFiles")
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 5.2.
     # Checks if the default trace is enabled.
@@ -981,7 +982,7 @@ function L3.7 {
                 WHERE name = 'default trace enabled';"
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'default trace enabled' is enabled (1)." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("name", "value_configured", "value_in_use")
+    HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 5.3.
     # Checks if the 'Login Auditing' is set to 'faled logins'
@@ -989,7 +990,7 @@ function L3.7 {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if the 'audit level' is configured to failure." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "A value of 'all' is also accepted, however it is recommended to check this with the SQL Server audit feature." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("name", "config_value")
+    HTMLPrinter -Table $Dataset -Columns @("name", "config_value")
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 5.4.
     # Checks if the 'SQL Server Audit' is set to capture both 'failed' and 'successful logins'.
@@ -1017,7 +1018,7 @@ function L3.7 {
     HTMLPrinter -OpeningTag "<p>" -Content "3 Rows should be returned." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "For these rows check if both the 'Audit Enabled' and 'Audit Specification Enabled' are set to 'Y'." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "Also check if 'audited_result' is set to 'SUCCESS AND FAILURE'." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("Audit_Name", "Audit_Enabled", "Write_Location", "Audit_Specification_Name", "Audit_Specification_Enabled", "audit_action_name", "audited_result")
+    HTMLPrinter -Table $Dataset -Columns @("Audit_Name", "Audit_Enabled", "Write_Location", "Audit_Specification_Name", "Audit_Specification_Enabled", "audit_action_name", "audited_result")
 }
 
 function UserManagement {
@@ -1056,7 +1057,7 @@ function UserManagement {
                         lgn.type_desc;"
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "A list of who is in server-level roles" -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("ServerName", "ServerRole", "MemberName", "type_desc")
+    HTMLPrinter -Table $Dataset -Columns @("ServerName", "ServerRole", "MemberName", "type_desc")
 
     # Step 2: Audit the permissions of non-fixed server-level roles.
     $SqlQuery = "SELECT @@SERVERNAME                        AS ServerName,
@@ -1074,7 +1075,7 @@ function UserManagement {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "A list of Server level roles, defining what they are, and what they can do." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "Fixed server roles are not shown." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("ServerName", "RoleName", "permission_name", "state_desc", "Grantor")
+    HTMLPrinter -Table $Dataset -Columns @("ServerName", "RoleName", "permission_name", "state_desc", "Grantor")
 
     # Step 3: Audit any Logins that have access to specific objects outside of a role.
     $SqlQuery = "SELECT
@@ -1111,7 +1112,7 @@ function UserManagement {
                     permission_name;"
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "A list of permissions directly granted or denied to logins." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset.Tables[0] -Columns @("ServerName", "SchemaName", "ObjectName", "type_desc", "Grantee", "Grantor", "principal_type_desc", "permission_name", "permission_state_desc")
+    HTMLPrinter -Table $Dataset -Columns @("ServerName", "SchemaName", "ObjectName", "type_desc", "Grantee", "Grantor", "principal_type_desc", "permission_name", "permission_state_desc")
 
     # Step 4: Audit who has access to the database.
     $SqlQuery = "SELECT
@@ -1130,18 +1131,18 @@ function UserManagement {
                         Username;"
     HTMLPrinter -OpeningTag "<p>" -Content "A list of users and the roles they are in." -ClosingTag "</p>"
     if ($Script:AllDatabases) {
-        foreach ($db in $Script:ListOfDatabases.Tables[0]) {
+        foreach ($db in $Script:ListOfDatabases) {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $Dataset = DataCollector $SqlQuery
-            HTMLPrinter -Table $Dataset.Tables[0] -Columns @("ServerName", "DatabaseName", "UserName", "RoleName", "LoginName", "LoginType")
+            HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "UserName", "RoleName", "LoginName", "LoginType")
         }
     $Script:Database = $Script:OriginalDatabase
     SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        HTMLPrinter -Table $Dataset.Tables[0] -Columns @("ServerName", "DatabaseName", "UserName", "RoleName", "LoginName", "LoginType")
+        HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "UserName", "RoleName", "LoginName", "LoginType")
     }
     
     # Step 5: Audit roles on each database, defining what they are, and what they can do.
@@ -1174,18 +1175,18 @@ function UserManagement {
     HTMLPrinter -OpeningTag "<p>" -Content "A list of Database level roles, defining what they are, and what they can do." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "Fixed database roles are not shown." -ClosingTag "</p>"
     if ($Script:AllDatabases) {
-        foreach ($db in $Script:ListOfDatabases.Tables[0]) {
+        foreach ($db in $Script:ListOfDatabases) {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $Dataset = DataCollector $SqlQuery
-            HTMLPrinter -Table $Dataset.Tables[0] -Columns @("ServerName", "DatabaseName", "RoleName", "SchemaName", "ObjectName", "permission_name", "state_desc", "Grantor")
+            HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "RoleName", "SchemaName", "ObjectName", "permission_name", "state_desc", "Grantor")
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        HTMLPrinter -Table $Dataset.Tables[0] -Columns @("ServerName", "DatabaseName", "RoleName", "SchemaName", "ObjectName", "permission_name", "state_desc", "Grantor")
+        HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "RoleName", "SchemaName", "ObjectName", "permission_name", "state_desc", "Grantor")
     }
 
     # Step 6: Audit any users that have access to specific objects outside of a role
@@ -1224,18 +1225,18 @@ function UserManagement {
                         permission_name;"
     HTMLPrinter -OpeningTag "<p>" -Content "Audit any users that have access to specific objects outside of a role" -ClosingTag "</p>"
     if ($Script:AllDatabases) {
-        foreach ($db in $Script:ListOfDatabases.Tables[0]) {
+        foreach ($db in $Script:ListOfDatabases) {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $Dataset = DataCollector $SqlQuery
-            HTMLPrinter -Table $Dataset.Tables[0] -Columns @("ServerName", "DatabaseName", "SchemaName", "ObjectName", "type_desc", "Grantee", "LoginName", "Grantor", "principal_type_desc", "permission_name", "permission_state_desc")
+            HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "SchemaName", "ObjectName", "type_desc", "Grantee", "LoginName", "Grantor", "principal_type_desc", "permission_name", "permission_state_desc")
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        HTMLPrinter -Table $Dataset.Tables[0] -Columns @("ServerName", "DatabaseName", "SchemaName", "ObjectName", "type_desc", "Grantee", "LoginName", "Grantor", "principal_type_desc", "permission_name", "permission_state_desc")
+        HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "SchemaName", "ObjectName", "type_desc", "Grantee", "LoginName", "Grantor", "principal_type_desc", "permission_name", "permission_state_desc")
     }
 }
 
@@ -1285,11 +1286,16 @@ TD {border-width: 1px;padding: 3px; border-style: solid;border-color: black;}
 </style>
 "@
 
-    if ($Content -eq "") {
-        out-file -filepath $Script:Outfile -inputobject ($Table | ConvertTo-Html -Property $Columns -Fragment -PreContent $TableCSS) -append
+    try { 
+        if ($Content -eq "") {
+            out-file -filepath $Script:Outfile -inputobject ($Table | ConvertTo-Html -Property $Columns -Fragment -PreContent $TableCSS) -append
+        }
+        else {
+            out-file -filepath $Script:Outfile -InputObject $OpeningTag, $Content, $ClosingTag -append
+        }
     }
-    else {
-        out-file -filepath $Script:Outfile -InputObject $OpeningTag, $Content, $ClosingTag -append
+    catch {
+        Write-Host "An Error has occured."
     }
 }
 
