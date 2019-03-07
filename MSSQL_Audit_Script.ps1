@@ -412,25 +412,28 @@ function L1.2 {
                         name AS DBUser,
                         authentication_type
                 FROM sys.database_principals
-                WHERE name NOT IN ('dbo', 'Information_Schema', 'sys', 'guest')
-                    AND type IN ('U', 'S', 'G');"
-    if ($Script:AllDatabases) {
+                WHERE type IN ('U', 'S', 'G');"
+    if ($Script:AllDatabases -and $Script:ListOfDatabases.containment -contains 1) {
         foreach ($db in $Script:ListOfDatabases) {
             if($db.containment -eq 1){
                 $Script:Database = $db.name
                 SqlConnectionBuilder
                 $Dataset = DataCollector $SqlQuery
-                HTMLPrinter -OpeningTag "<p>" -Content "Check if SQL authentication (authentication_type 2) is not used in this contained databases." -ClosingTag "</p>"
+                HTMLPrinter -OpeningTag "<p>" -Content "Check if SQL authentication (authentication_type 2) is not used in this contained database." -ClosingTag "</p>"
                 HTMLPrinter -Table $Dataset -Columns @("DatabaseName", "DBUser", "authentication_type")
             }
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
+    elseif ($Script:AllDatabases) {
+        HTMLPrinter -OpeningTag "<p>" -Content "There are no contained databases." -ClosingTag "</p>"
+    } 
     else {
-        if($db.containment -eq 1){
+        $contained = $Script:ListOfDatabases | Where name -eq $Database
+        if($contained.containment -eq 1){
             $Dataset = DataCollector $SqlQuery
-            HTMLPrinter -OpeningTag "<p>" -Content "Check if SQL authentication (authentication_type 2) is not used in this contained databases." -ClosingTag "</p>"
+            HTMLPrinter -OpeningTag "<p>" -Content "Check if SQL authentication (authentication_type 2) is not used in this contained database." -ClosingTag "</p>"
             HTMLPrinter -Table $Dataset -Columns @("DBUser", "authentication_type")
         }
         else {
