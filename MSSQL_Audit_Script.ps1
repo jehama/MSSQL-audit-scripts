@@ -430,11 +430,11 @@ function L1.2 {
         HTMLPrinter -OpeningTag "<p>" -Content "There are no contained databases." -ClosingTag "</p>"
     } 
     else {
-        $contained = $Script:ListOfDatabases | Where name -eq $Database
+        $contained = $Script:ListOfDatabases | Where-Object name -eq $Database
         if($contained.containment -eq 1){
             $Dataset = DataCollector $SqlQuery
             HTMLPrinter -OpeningTag "<p>" -Content "Check if SQL authentication (authentication_type 2) is not used in this contained database." -ClosingTag "</p>"
-            HTMLPrinter -Table $Dataset -Columns @("DBUser", "authentication_type")
+            HTMLPrinter -Table $Dataset -Columns @("DatabaseName", "DBUser", "authentication_type")
         }
         else {
             HTMLPrinter -OpeningTag "<p>" -Content "This database is not a contained database." -ClosingTag "</p>"
@@ -507,7 +507,7 @@ function L2.1 {
     # Checks if only the default permissions specified by Microsoft are granted to the public server role.
     $SqlQuery = "SELECT *
                 FROM master.sys.server_permissions
-                WHERE (grantee_principal_id = SUSER_SID(N'public') and state_desc LIKE 'GRANT%');"
+                WHERE (grantee_principal_id = SUSER_SID(N'public'));"
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "The 'public' server role has the following permissions." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "These extra permissions apply to every login on the server. Therefore it should only have the default permissions." -ClosingTag "</p>"
@@ -915,7 +915,8 @@ function L3.5 {
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 7.1.
     # Checks if 'Symmetric Key encryption algorithm' is set to 'AES_128' or higher.
-    $SqlQuery = "SELECT *
+    $SqlQuery = "SELECT *,
+                        DB_NAME() AS DatabaseName
                 FROM sys.symmetric_keys;"
     HTMLPrinter -OpeningTag "<p>" -Content "Check for every databse if the 'algorithm_desc' is set to 'AES_128', 'AES_192' or 'AES_256'." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "If no output is returned for a database then this means that no symmetric key is available for that database.`n" -ClosingTag "</p>"
