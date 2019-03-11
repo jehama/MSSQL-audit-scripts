@@ -272,14 +272,16 @@ function DataCollector {
     $SQLAdapter.SelectCommand = $SQLCommand
     $Dataset = New-Object System.Data.DataSet
     $SqlAdapter.Fill($Dataset) | Out-Null
-    $DataTable = New-Object System.Data.DataTable
-    $DataTable = $Dataset.Tables[0]
+
 
     if($AllTables -eq "y")
     {
         ,$Dataset
     }
     else {
+        $DataTable = New-Object System.Data.DataTable
+        $DataTable = $Dataset.Tables[0]
+
         ,$DataTable
     }
 }
