@@ -1235,23 +1235,26 @@ function L3.7 {
 
 function UserManagement {
     <#
-    **************************************************************************************************
-    *** Server Permissions Audit ***
-    **************************************************************************************************
+    .SYNOPSIS
+    Checks Usermanagement for the database server and it's underlying databases.
+    
+    .DESCRIPTION
+    Usermanagment is checked both on the server level and on the underlying databases.
+    First the login to database user mapping is checked.
 
-    These queries are based on an existing script.
-    This script is used for auditing the permissions that exist on a SQL Server. It will scan every
-    database on the server.
-    and return four record sets:
-    1. Audit who is in server-level roles
-    2. Audit roles on each database, defining what they are and what they can do
-    3. Audit the roles that users are in
-    4. Audit any users that have access to specific objects outside of a role
+    Then Server level data is gathered.
+    First every login is checked to see which roles they possess.
+    Second every server non-fixed server role is checked to which rights they possess.
+    Third every login is checked again to see which rights they possess that are granted outside of a role.
 
-    NOTE: the script these queries are based on was written for MS SQL Server 2005 and uses undocumented system tables,
-    rather than the standard MS procedures. It is likely that this script will not work in future versions of SQL Server.
-
-    Created: 2010-05-07
+    Lastly the same checks from the server level are performed on the databases level.
+    Depending on the flags the program was started with it will either check all databases or only the specified one.
+    
+    .EXAMPLE
+    UserManagment
+    
+    .NOTES
+    Depending on the amount of users and how their grants are managed this function may create a lot of data.
     #>
 
     Write-Host "###### Now checking User Management"
@@ -1354,7 +1357,7 @@ function UserManagement {
     HTMLPrinter -Table $Dataset -Columns @("ServerName", "SchemaName", "ObjectName", "Type_Desc", "Grantee", "Grantor", "Principal_Type_Desc", "Permission_Name", "Permission_State_Desc")
 
     # Step 4: Audit who has access to the database.
-    $SqlQuery = "SELECT
+    $SqlQueryDBAccess = "SELECT
                     @@SERVERNAME                    AS ServerName,
                     DB_NAME()                       AS DatabaseName, 
                     DP.name                         AS UserName,
@@ -1380,24 +1383,9 @@ function UserManagement {
                     RoleName,
                     UserName
                 ;"
-    HTMLPrinter -OpeningTag "<p>" -Content "A list of users and the roles they are in." -ClosingTag "</p>"
-    if ($Script:AllDatabases) {
-        foreach ($db in $Script:DatabasesInfo) {
-            $Script:Database = $db.name
-            SqlConnectionBuilder
-            $Dataset = DataCollector $SqlQuery
-            HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "UserName", "RoleName", "LoginName", "LoginType", "Date_Created", "Last_Modified")
-        }
-    $Script:Database = $Script:OriginalDatabase
-    SqlConnectionBuilder
-    }
-    else {
-        $Dataset = DataCollector $SqlQuery
-        HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "UserName", "RoleName", "LoginName", "LoginType", "Date_Created", "Last_Modified")
-    }
     
     # Step 5: Audit roles on each database, defining what they are, and what they can do.
-    $SqlQuery ="SELECT
+    $SqlQueryDBRoles ="SELECT
                     @@SERVERNAME                AS ServerName,
                     DB_NAME()                   AS DatabaseName,
                     DPRIN.name                  AS RoleName,
@@ -1426,25 +1414,9 @@ function UserManagement {
                     Grantor,
                     Permission_Name
                 ;"
-    HTMLPrinter -OpeningTag "<p>" -Content "A list of Database level roles, defining what they are, and what they can do." -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "Fixed database roles are not shown." -ClosingTag "</p>"
-    if ($Script:AllDatabases) {
-        foreach ($db in $Script:DatabasesInfo) {
-            $Script:Database = $db.name
-            SqlConnectionBuilder
-            $Dataset = DataCollector $SqlQuery
-            HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "RoleName", "SchemaName", "ObjectName", "Permission_Name", "State_Desc", "Grantor", "Date_Created", "Last_Modified")
-        }
-        $Script:Database = $Script:OriginalDatabase
-        SqlConnectionBuilder
-    }
-    else {
-        $Dataset = DataCollector $SqlQuery
-        HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "RoleName", "SchemaName", "ObjectName", "Permission_Name", "State_Desc", "Grantor", "Date_Created", "Last_Modified")
-    }
 
     # Step 6: Audit any users that have access to specific objects outside of a role
-    $SqlQuery = "SELECT
+    $SqlQueryDBRights = "SELECT
                     @@SERVERNAME                AS ServerName,
                     DB_NAME()                   AS DatabaseName,
                     ISNULL(SCH.name, OSCH.name) AS SchemaName,
@@ -1475,20 +1447,41 @@ function UserManagement {
                     Permission_State_Desc,
                     Permission_Name
                 ;"
-    HTMLPrinter -OpeningTag "<p>" -Content "Audit any users that have access to specific objects outside of a role" -ClosingTag "</p>"
+
     if ($Script:AllDatabases) {
         foreach ($db in $Script:DatabasesInfo) {
             $Script:Database = $db.name
             SqlConnectionBuilder
-            $Dataset = DataCollector $SqlQuery
+
+            $Dataset = DataCollector $SqlQueryDBAccess
+            HTMLPrinter -OpeningTag "<p>" -Content "A list of users and the roles they are in." -ClosingTag "</p>"
+            HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "UserName", "RoleName", "LoginName", "LoginType", "Date_Created", "Last_Modified")
+
+            $Dataset = DataCollector $SqlQueryDBRoles
+            HTMLPrinter -OpeningTag "<p>" -Content "A list of Database level roles, defining what they are, and what they can do." -ClosingTag "</p>"
+            HTMLPrinter -OpeningTag "<p>" -Content "Fixed database roles are not shown." -ClosingTag "</p>"
+            HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "RoleName", "SchemaName", "ObjectName", "Permission_Name", "State_Desc", "Grantor", "Date_Created", "Last_Modified")
+
+            $Dataset = DataCollector $SqlQueryDBRights
+            HTMLPrinter -OpeningTag "<p>" -Content "Audit any users that have access to specific objects outside of a role" -ClosingTag "</p>"
             HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "SchemaName", "ObjectName", "Type_Desc", "Grantee", "LoginName", "Grantor", "Principal_Type_Desc", "Permission_Name", "Permission_State_Desc")
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
-        $Dataset = DataCollector $SqlQuery
-        HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "SchemaName", "ObjectName", "Type_Desc", "Grantee", "LoginName", "Grantor", "Principal_Type_Desc", "Permission_Name", "Permission_State_Desc")
+        $Dataset = DataCollector $SqlQueryDBAccess
+        HTMLPrinter -OpeningTag "<p>" -Content "A list of users and the roles they are in." -ClosingTag "</p>"
+        HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "UserName", "RoleName", "LoginName", "LoginType", "Date_Created", "Last_Modified")
+
+        $Dataset = DataCollector $SqlQueryDBRoles
+        HTMLPrinter -OpeningTag "<p>" -Content "A list of Database level roles, defining what they are, and what they can do." -ClosingTag "</p>"
+        HTMLPrinter -OpeningTag "<p>" -Content "Fixed database roles are not shown." -ClosingTag "</p>"
+        HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "RoleName", "SchemaName", "ObjectName", "Permission_Name", "State_Desc", "Grantor", "Date_Created", "Last_Modified")
+
+        $Dataset = DataCollector $SqlQueryDBRights
+        HTMLPrinter -OpeningTag "<p>" -Content "Audit any users that have access to specific objects outside of a role" -ClosingTag "</p>"
+        HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "SchemaName", "ObjectName", "Type_Desc", "Grantee", "LoginName", "Grantor", "Principal_Type_Desc", "Permission_Name", "Permission_State_Desc")   
     }
 }
 
