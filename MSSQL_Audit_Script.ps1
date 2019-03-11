@@ -158,7 +158,7 @@ function Startup {
     SqlConnectionBuilder    
 
     CheckFullVersion
-    GenerateDatabaseList
+    GenerateDatabasesInfo
 
     Write-Host "Setup completed in:                                  " $Script:Stopwatch.Elapsed
     $Script:TotalTime += $Script:Stopwatch.Elapsed
@@ -309,7 +309,7 @@ function CheckFullVersion {
     HTMLPrinter -Table $Dataset -Columns @("Version")
 }
 
-function GenerateDatabaseList {
+function GenerateDatabasesInfo {
     <#
     .SYNOPSIS
     Generate list of databases.
@@ -319,7 +319,7 @@ function GenerateDatabaseList {
     This list is used for queries that are used on every database on the server.
     
     .EXAMPLE
-    GenerateDatabaseList
+    GenerateDatabasesInfo
     
     .NOTES
     General notes
@@ -333,10 +333,35 @@ function GenerateDatabaseList {
                 FROM
                     sys.databases AS DB
                 ;"
-    $Script:ListOfDatabases = DataCollector $SqlQuery
+    $Script:DatabasesInfo = DataCollector $SqlQuery
+    $Script:DatabasesInfo.Columns.Add("NumberOfUsers", "System.String") | Out-Null
+
+    $SqlQuery = "SELECT
+                    COUNT(*) AS Users
+                FROM
+                    sys.database_principals  AS DP
+                WHERE
+                    DP.type IN (
+                        'C',
+                        'E',
+                        'G',
+                        'K',
+                        'S',
+                        'U',
+                        'X'
+                    )
+                ;"
+    foreach ($db in $Script:DatabasesInfo) {
+        $Script:Database = $db.name
+        SqlConnectionBuilder
+        $Dataset = DataCollector $SqlQuery
+        $db.NumberOfUsers = $Dataset.Users
+    }
+    $Script:Database = $Script:OriginalDatabase
+    SqlConnectionBuilder
 
     HTMLPrinter -OpeningTag "<h3>" -Content "This server contains the following databases:" -ClosingTag "</h3>"
-    HTMLPrinter -Table $ListOfDatabases -Columns @("Name")
+    HTMLPrinter -Table $Script:DatabasesInfo -Columns @("Name", "Create_Date", "NumberOfUsers")
 }
 
 function L1.1 {
@@ -454,8 +479,8 @@ function L1.2 {
                     Authentication_type,
                     DBUser
                 ;"
-    if ($Script:AllDatabases -and $Script:ListOfDatabases.containment -contains 1) {
-        foreach ($db in $Script:ListOfDatabases) {
+    if ($Script:AllDatabases -and $Script:DatabasesInfo.containment -contains 1) {
+        foreach ($db in $Script:DatabasesInfo) {
             if($db.containment -eq 1){
                 $Script:Database = $db.name
                 SqlConnectionBuilder
@@ -471,7 +496,7 @@ function L1.2 {
         HTMLPrinter -OpeningTag "<p>" -Content "There are no contained databases." -ClosingTag "</p>"
     } 
     else {
-        $contained = $Script:ListOfDatabases | Where-Object name -eq $Database
+        $contained = $Script:DatabasesInfo | Where-Object name -eq $Database
         if($contained.containment -eq 1){
             $Dataset = DataCollector $SqlQuery
             HTMLPrinter -OpeningTag "<p>" -Content "Check if SQL authentication (authentication_type 2) is not used in this contained database." -ClosingTag "</p>"
@@ -812,7 +837,7 @@ function L3.4 {
     HTMLPrinter -OpeningTag "<p>" -Content "Check for each of the following databases if the 'CONNECT' permission has been revoked for the 'guest' user." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "The connect permission is required for the 'master', 'tempdb', 'msdb' databases. Therefore they can be ignored." -ClosingTag "</p>"
     if ($Script:AllDatabases) {
-        foreach ($db in $Script:ListOfDatabases) {
+        foreach ($db in $Script:DatabasesInfo) {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $Dataset = DataCollector $SqlQuery
@@ -987,7 +1012,7 @@ function L3.5 {
     # Checks if the option 'is_trustworthy_on' is disabled.
     HTMLPrinter -OpeningTag "<p>" -Content "Check for the following databases if they have the (is_trustworthy_on set to False)." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "The 'msdb' database is required to have 'is_trustworthy_on set to True.`n" -ClosingTag "</p>"
-    HTMLPrinter -Table $Script:ListOfDatabases -Columns @("Name", "Is_Trustworthy_On")
+    HTMLPrinter -Table $Script:DatabasesInfo -Columns @("Name", "Is_Trustworthy_On")
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.12.
     # Checks if the server is hidden. If the server is in a cluster it might be necessary to have this turned off.
@@ -1029,7 +1054,7 @@ function L3.5 {
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.16.
     # Checks if the is_auto_close_on option is turned off for contained databases.
     HTMLPrinter -OpeningTag "<p>" -Content "Check if the 'is_auto_close_on' option is set to 'False' for the databases with 'containment' not set to '0'." -ClosingTag "</p>"
-    HTMLPrinter -Table $Script:ListOfDatabases -Columns @("Name", "Containment", "Containment_Desc", "Is_Auto_Close_On")
+    HTMLPrinter -Table $Script:DatabasesInfo -Columns @("Name", "Containment", "Containment_Desc", "Is_Auto_Close_On")
 
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 6.2.
     # Checks if user defined CLR assemblies are set to 'SAFE_ACCESS'.
@@ -1058,7 +1083,7 @@ function L3.5 {
     HTMLPrinter -OpeningTag "<p>" -Content "Check for every databse if the 'algorithm_desc' is set to 'AES_128', 'AES_192' or 'AES_256'." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "If no output is returned for a database then this means that no symmetric key is available for that database.`n" -ClosingTag "</p>"
     if ($Script:AllDatabases) {
-        foreach ($db in $Script:ListOfDatabases) {
+        foreach ($db in $Script:DatabasesInfo) {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $Dataset = DataCollector $SqlQuery
@@ -1084,7 +1109,7 @@ function L3.5 {
     HTMLPrinter -OpeningTag "<p>" -Content "Check for every databse if the 'key_length' is set to '2048'." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "If no output is returned for a database then this means that no asymmetric key is available for that database.`n" -ClosingTag "</p>"
     if ($Script:AllDatabases) {
-        foreach ($db in $Script:ListOfDatabases) {
+        foreach ($db in $Script:DatabasesInfo) {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $Dataset = DataCollector $SqlQuery
@@ -1357,7 +1382,7 @@ function UserManagement {
                 ;"
     HTMLPrinter -OpeningTag "<p>" -Content "A list of users and the roles they are in." -ClosingTag "</p>"
     if ($Script:AllDatabases) {
-        foreach ($db in $Script:ListOfDatabases) {
+        foreach ($db in $Script:DatabasesInfo) {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $Dataset = DataCollector $SqlQuery
@@ -1404,7 +1429,7 @@ function UserManagement {
     HTMLPrinter -OpeningTag "<p>" -Content "A list of Database level roles, defining what they are, and what they can do." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "Fixed database roles are not shown." -ClosingTag "</p>"
     if ($Script:AllDatabases) {
-        foreach ($db in $Script:ListOfDatabases) {
+        foreach ($db in $Script:DatabasesInfo) {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $Dataset = DataCollector $SqlQuery
@@ -1452,7 +1477,7 @@ function UserManagement {
                 ;"
     HTMLPrinter -OpeningTag "<p>" -Content "Audit any users that have access to specific objects outside of a role" -ClosingTag "</p>"
     if ($Script:AllDatabases) {
-        foreach ($db in $Script:ListOfDatabases) {
+        foreach ($db in $Script:DatabasesInfo) {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $Dataset = DataCollector $SqlQuery
