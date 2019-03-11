@@ -258,7 +258,11 @@ function DataCollector {
         # The SQL query to run.
         [parameter(Mandatory = $true)]
         [String[]]
-        $SqlQuery
+        $SqlQuery,
+
+        [parameter()]
+        [String]
+        $AllTables
     )
 
     $SQLCommand = New-Object System.Data.SqlClient.SqlCommand
@@ -271,7 +275,13 @@ function DataCollector {
     $DataTable = New-Object System.Data.DataTable
     $DataTable = $Dataset.Tables[0]
 
-    ,$DataTable
+    if($AllTables -eq "y")
+    {
+        ,$Dataset
+    }
+    else {
+        ,$DataTable
+    }
 }
 
 function CheckFullVersion {
@@ -1220,12 +1230,34 @@ function UserManagement {
     Write-Host "###### Now checking User Management"
     HTMLPrinter -OpeningTag "<h3>" -Content "User Management" -ClosingTag "</h3>"
 
+    # Maps each login to all it's corresponding database users.
+    $SqlQuery = "EXEC
+                    sp_MSloginmappings
+                ;"
+    $Dataset = DataCollector $SqlQuery "y"
+    HTMLPrinter -OpeningTag "<p>" -Content "This table contains every login on the server and their corresponding database accounts." -ClosingTag "</p>"
+    
+    # Because the sp_MSloginMappings sends back multiple tables they need to be joined togheter.
+    $TempTable = New-Object System.Data.DataTable
+    $TempTable.Columns.Add("LoginName", "System.String") | Out-Null
+    $TempTable.Columns.Add("DBName", "System.String") | Out-Null
+    $TempTable.Columns.Add("UserName", "System.String") | Out-Null
+    $TempTable.Columns.Add("AliasName", "System.String") | Out-Null
+    foreach($DataTable in $Dataset.Tables) {
+        foreach($Row in $DataTable){
+            $TempTable.ImportRow($Row)
+        }
+    }
+    HTMLPrinter -Table $TempTable -Columns @("LoginName", "DBName", "UserName", "AliasName")
+
     # Step 1: Audit who is in server-level roles.
     $SqlQuery = "SELECT
                     @@SERVERNAME                     AS ServerName,
                     SUSER_NAME(RM.role_principal_id) AS ServerRole,
                     LGN.name                         AS MemberName,
-                    LGN.type_desc                    AS Type_Desc
+                    LGN.type_desc                    AS Type_Desc,
+                    LGN.create_date                  AS Date_Created,
+                    LGN.modify_date                  AS Last_Modified
                 FROM
                                sys.server_role_members AS RM
                     INNER JOIN sys.server_principals   AS LGN ON RM.member_principal_id = LGN.principal_id
@@ -1235,7 +1267,7 @@ function UserManagement {
                 ;"
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "A list of who is in server-level roles" -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("ServerName", "ServerRole", "MemberName", "Type_Desc")
+    HTMLPrinter -Table $Dataset -Columns @("ServerName", "ServerRole", "MemberName", "Type_Desc", "Date_Created", "Last_Modified")
 
     # Step 2: Audit the permissions of non-fixed server-level roles.
     $SqlQuery = "SELECT
@@ -1243,7 +1275,9 @@ function UserManagement {
                     PR.name                             AS RoleName,
                     PE.permission_name                  AS Permission_Name,
                     PE.state_desc                       AS State_Desc,
-                    SUSER_NAME(PE.grantor_principal_id) AS Grantor
+                    SUSER_NAME(PE.grantor_principal_id) AS Grantor,
+                    PR.create_date                      AS Date_Created,
+                    PR.modify_date                      AS Last_Modified
                 FROM
                          sys.server_principals  AS PR
                     JOIN sys.server_permissions AS PE ON PE.grantee_principal_id = PR.principal_id
@@ -1256,7 +1290,7 @@ function UserManagement {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "A list of Server level roles, defining what they are, and what they can do." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "Fixed server roles are not shown." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("ServerName", "RoleName", "Permission_Name", "State_Desc", "Grantor")
+    HTMLPrinter -Table $Dataset -Columns @("ServerName", "RoleName", "Permission_Name", "State_Desc", "Grantor", "Date_Created", "Last_Modified")
 
     # Step 3: Audit any Logins that have access to specific objects outside of a role.
     $SqlQuery = "SELECT
@@ -1299,7 +1333,9 @@ function UserManagement {
                     DP.name                         AS UserName,
                     USER_NAME(SM.role_principal_id) AS RoleName,
                     SUSER_SNAME(DP.sid)             AS LoginName,
-                    DP.type_desc                    AS LoginType
+                    DP.type_desc                    AS LoginType,
+                    DP.create_date                  AS Date_Created,
+                    DP.modify_date                  AS Last_Modified
                 FROM
                               sys.database_principals   AS DP
                     LEFT JOIN sys.database_role_members AS SM ON DP.principal_id = SM.member_principal_id
@@ -1323,14 +1359,14 @@ function UserManagement {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $Dataset = DataCollector $SqlQuery
-            HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "UserName", "RoleName", "LoginName", "LoginType")
+            HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "UserName", "RoleName", "LoginName", "LoginType", "Date_Created", "Last_Modified")
         }
     $Script:Database = $Script:OriginalDatabase
     SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "UserName", "RoleName", "LoginName", "LoginType")
+        HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "UserName", "RoleName", "LoginName", "LoginType", "Date_Created", "Last_Modified")
     }
     
     # Step 5: Audit roles on each database, defining what they are, and what they can do.
@@ -1342,7 +1378,9 @@ function UserManagement {
                     ISNULL(O.name, '.')         AS ObjectName,
                     DPERM.permission_name       AS Permission_Name,
                     DPERM.state_desc            AS State_Desc,
-                    GRANTOR.name                AS Grantor
+                    GRANTOR.name                AS Grantor,
+                    DPRIN.create_date                  AS Date_Created,
+                    DPRIN.modify_date                  AS Last_Modified
                 FROM                sys.database_permissions AS DPERM
                     INNER JOIN      sys.database_principals  AS DPRIN    ON DPERM.grantee_principal_id = DPRIN.principal_id
                     INNER JOIN      sys.database_principals  AS GRANTOR  ON DPERM.grantor_principal_id = GRANTOR.principal_id
@@ -1368,14 +1406,14 @@ function UserManagement {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $Dataset = DataCollector $SqlQuery
-            HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "RoleName", "SchemaName", "ObjectName", "Permission_Name", "State_Desc", "Grantor")
+            HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "RoleName", "SchemaName", "ObjectName", "Permission_Name", "State_Desc", "Grantor", "Date_Created", "Last_Modified")
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
         $Dataset = DataCollector $SqlQuery
-        HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "RoleName", "SchemaName", "ObjectName", "Permission_Name", "State_Desc", "Grantor")
+        HTMLPrinter -Table $Dataset -Columns @("ServerName", "DatabaseName", "RoleName", "SchemaName", "ObjectName", "Permission_Name", "State_Desc", "Grantor", "Date_Created", "Last_Modified")
     }
 
     # Step 6: Audit any users that have access to specific objects outside of a role
