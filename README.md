@@ -1,2 +1,4 @@
 # MSSQL-audit-scripts
-scripts that can be used when auditing a MSSQL Server.
+
+Scripts that can be used when auditing a MSSQL Server.
+This script has currently been tested on MSSQL 2012 and MSSQL 2016.
