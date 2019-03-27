@@ -3,12 +3,12 @@
 Audits the MSSQL Server against the CIS-benchmark, and looks at all users, roles and their rights.
 
 .DESCRIPTION
-This scripts checks the recommendations of the CIS-benchmark for MSSQL Server 2016 against the current configuration of the MSSQL Server.
+This scripts checks the recommendations of the CIS-benchmark for MSSQL Server 2016 and MSSQL Server 2012 against the current configuration of the MSSQL Server.
 It will also display the following information from the database:
-    * The databases on the MSSQL Server.
+    * The databases on the MSSQL Server, the date and time they were created, and the number of users each database has..
     * The logins and their corresponding database accounts.
-    * The roles that are defined.
-    * The rights granted or denied to users and roles.
+    * The roles that are defined, both on server and database level.
+    * The rights granted or denied to users and roles, both on server and database level.
 
 .PARAMETER Server
 Specifies the MSSQL Server to connect to.
@@ -36,9 +36,8 @@ Valid options are: 'All','CIS','UserManagement'.
 None.
 
 .OUTPUTS
-All output is printed on the console.
-If you wish to save the output add '> output.txt' after the command to run the script.
-This will save the output in a file called output.txt.
+The output is saved in a HTML file.
+This file will be saved in the same folder the script is run from.
 
 .EXAMPLE
 .\MSSQL_Audit_Script.ps1 -Server "Servername" -WindowsAuthentication
