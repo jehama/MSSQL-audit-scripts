@@ -1569,16 +1569,30 @@ function UserManagement {
 function HTMLPrinter {
     <#
     .SYNOPSIS
-    TODO
+    Converts the gathered data to HTML and sends it to the output file.
     
     .DESCRIPTION
-    TODO
-    
+    The HTMLPrinter will take the parameters that are send and use them to format the gathered data to HTML.
+    The formatted HTML will then be send to the output file.
+    There are two sets of parameters that can be used with this method.
+    The first set can be used to print headers, text and the likes.
+    The second set can be used to print tables.
+
+    .PARAMETER OpeningTag
+
+    .PARAMETER Content
+
+    .PARAMETER ClosingTag
+
+    .PARAMETER Table
+
+    .PARAMETER Columns
+
     .EXAMPLE
-    TODO
-    
-    .NOTES
-    TODO
+    HTMLPrinter -OpeningTag "<p>" -Content "Example content" -ClosingTag "</p>"
+
+    .EXAMPLE
+    HTMLPrinter -Table $Dataset -Columns @("Column1", "Column2", "Column3")
     #>
     [CmdletBinding()]
 
