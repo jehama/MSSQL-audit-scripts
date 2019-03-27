@@ -1316,31 +1316,32 @@ function L3.7 {
 function UserManagement {
     <#
     .SYNOPSIS
-    Checks Usermanagement for the database server and it's underlying databases.
+    Checks Usermanagement for the SQL server and it's databases.
     
     .DESCRIPTION
-    Usermanagment is checked both on the server level and on the underlying databases.
+    Usermanagment is checked both on the server level and on the database level.
+
     First the login to database user mapping is checked.
 
-    Then Server level data is gathered.
-    First every login is checked to see which roles they possess.
-    Second every server non-fixed server role is checked to which rights they possess.
-    Third every login is checked again to see which rights they possess that are granted outside of a role.
+    Secondly the server level data is gathered.
+    This starts with checking for every login to see which roles they possess.
+    Then every server non-fixed server role is checked to see which permissions they possess.
+    Finally every login is checked again to see which permissions they possess that are granted outside of a role.
 
-    Lastly the same checks from the server level are performed on the databases level.
-    Depending on the flags the program was started with it will either check all databases or only the specified one.
+    Lastly the same checks from the server level are performed on the database level.
+    Depending on the flags the script was started with it will either check all databases or only the specified one.
     
     .EXAMPLE
     UserManagment
     
     .NOTES
-    Depending on the amount of users and how their grants are managed this function may create a lot of data.
+    Depending on the amount of users and how their permissions are managed this function may create a lot of data.
     #>
 
     Write-Host "###### Now checking User Management"
     HTMLPrinter -OpeningTag "<h3>" -Content "User Management" -ClosingTag "</h3>"
 
-    # Maps each login to all it's corresponding database users.
+    # Step 1: Maps each login to all it's corresponding database users.
     $SqlQuery = "EXEC
                     sp_MSloginmappings
                 ;"
@@ -1360,7 +1361,7 @@ function UserManagement {
     }
     HTMLPrinter -Table $TempTable -Columns @("LoginName", "DBName", "UserName", "AliasName")
 
-    # Step 1: Audit who is in server-level roles.
+    # Step 2: Audit who is in server-level roles.
     $SqlQuery = "SELECT
                     @@SERVERNAME                     AS ServerName,
                     SUSER_NAME(RM.role_principal_id) AS ServerRole,
@@ -1379,7 +1380,7 @@ function UserManagement {
     HTMLPrinter -OpeningTag "<p>" -Content "A list of who is in server-level roles" -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("ServerName", "ServerRole", "MemberName", "Type_Desc", "Date_Created", "Last_Modified")
 
-    # Step 2: Audit the permissions of non-fixed server-level roles.
+    # Step 3: Audit the permissions of non-fixed server-level roles.
     $SqlQuery = "SELECT
                     @@SERVERNAME                        AS ServerName,
                     PR.name                             AS RoleName,
@@ -1402,7 +1403,7 @@ function UserManagement {
     HTMLPrinter -OpeningTag "<p>" -Content "Fixed server roles are not shown." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("ServerName", "RoleName", "Permission_Name", "State_Desc", "Grantor", "Date_Created", "Last_Modified")
 
-    # Step 3: Audit any Logins that have access to specific objects outside of a role.
+    # Step 4: Audit any Logins that have access to specific objects outside of a role.
     $SqlQuery = "SELECT
                     @@SERVERNAME                AS ServerName,
                     ISNULL(sch.name, osch.name) AS SchemaName,
@@ -1436,7 +1437,7 @@ function UserManagement {
     HTMLPrinter -OpeningTag "<p>" -Content "A list of permissions directly granted or denied to logins." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("ServerName", "SchemaName", "ObjectName", "Type_Desc", "Grantee", "Grantor", "Principal_Type_Desc", "Permission_Name", "Permission_State_Desc")
 
-    # Step 4: Audit who has access to the database.
+    # Step 5: Audit who has access to the database.
     $SqlQueryDBAccess = "SELECT
                     @@SERVERNAME                    AS ServerName,
                     DB_NAME()                       AS DatabaseName, 
@@ -1464,7 +1465,7 @@ function UserManagement {
                     UserName
                 ;"
     
-    # Step 5: Audit roles on each database, defining what they are, and what they can do.
+    # Step 6: Audit roles on each database, defining what they are, and what they can do.
     $SqlQueryDBRoles ="SELECT
                     @@SERVERNAME                AS ServerName,
                     DB_NAME()                   AS DatabaseName,
@@ -1495,7 +1496,7 @@ function UserManagement {
                     Permission_Name
                 ;"
 
-    # Step 6: Audit any users that have access to specific objects outside of a role
+    # Step 7: Audit any users that have access to specific objects outside of a role
     $SqlQueryDBRights = "SELECT
                     @@SERVERNAME                AS ServerName,
                     DB_NAME()                   AS DatabaseName,
