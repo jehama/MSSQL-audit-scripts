@@ -1579,14 +1579,19 @@ function HTMLPrinter {
     The second set can be used to print tables.
 
     .PARAMETER OpeningTag
+    The HTML opening tag.
 
     .PARAMETER Content
+    The content to be converted to HTML.
 
     .PARAMETER ClosingTag
+    The HTML closing tag.
 
     .PARAMETER Table
+    The DataTable to be converted to HTML.
 
     .PARAMETER Columns
+    The columns of the DataTable.
 
     .EXAMPLE
     HTMLPrinter -OpeningTag "<p>" -Content "Example content" -ClosingTag "</p>"
@@ -1597,21 +1602,28 @@ function HTMLPrinter {
     [CmdletBinding()]
 
     param (
-        # The opening tag.
+        # The HTML opening tag.
+        [parameter(ParameterSetName = "Content", Mandatory = $true)]
         [string]
         $OpeningTag,
 
-        # The content of the html.
+        # The content to be converted to HTML.
+        [parameter(ParameterSetName = "Content", Mandatory = $true)]
         [string]
         $Content,
 
-        # The closing tag.
+        # The HTML closing tag.
+        [parameter(ParameterSetName = "Content", Mandatory = $true)]
         [string]
         $ClosingTag,
 
+        # The DataTable to be converted to HTML.
+        [parameter(ParameterSetName = "Table", Mandatory = $true)]  
         [System.Data.DataTable]
         $Table,
 
+        # The columns of the DataTable.
+        [parameter(ParameterSetName = "Table", Mandatory = $true)]
         [array]
         $Columns
     )
