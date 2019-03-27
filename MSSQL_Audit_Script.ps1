@@ -851,6 +851,10 @@ function L3.4 {
                     SP.is_disabled  AS Is_Disabled
                 FROM
                     sys.server_principals AS SP
+                WHERE
+                      SP.type = 'S'
+                   OR SP.type = 'U'
+                   OR SP.type = 'G'
                 ORDER BY
                     SP.Principal_ID
                     ;"
