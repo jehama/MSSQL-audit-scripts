@@ -48,6 +48,7 @@ This file will be saved in the same folder the script is run from.
 .EXAMPLE
 .\MSSQL_Audit_Script.ps1 -Server "Servername" -Database "DatabaseName" -WindowsAuthentication
 
+.EXAMPLE
 .\MSSQL_Audit_Script.ps1 -Server "Servername" -Include "CIS,UserManagement" -WindowsAuthentication
 #>
 
