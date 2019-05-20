@@ -1571,7 +1571,7 @@ function HTMLPrinter {
 "@
 
     $CollapsableStart = @"
-    <button class="collapsible">Open Collapsible</button>
+    <button class="collapsible">Open Table</button>
     <div class="content">
 "@
 
