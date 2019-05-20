@@ -136,6 +136,7 @@ function Startup {
             exit
         }
     }
+    HTMLPrinter -HTMLStart
 
     Write-Host "Using $Script:Server as target server"
     if ($Script:Database -ne "") {
@@ -166,6 +167,11 @@ function Startup {
     $Script:Stopwatch.Restart()
 
     Main
+
+    HTMLPrinter -HTMLEnd
+
+    $Script:TotalTime += $Script:Stopwatch.Elapsed
+    Write-Host "Audit has finished, total time elapsed:              " $Script:TotalTime
 }
 
 function Main {
@@ -200,9 +206,6 @@ function Main {
         Write-Host "Total time elapsed:                                  " $Script:TotalTime
         $Script:Stopwatch.Restart()
     }
-
-    $Script:TotalTime += $Script:Stopwatch.Elapsed
-    Write-Host "Audit has finished, total time elapsed:              " $Script:TotalTime
 }
 
 function SqlConnectionBuilder {
@@ -1453,25 +1456,139 @@ function HTMLPrinter {
         # The columns of the DataTable.
         [parameter(ParameterSetName = "Table", Mandatory = $true)]
         [array]
-        $Columns
+        $Columns,
+
+        # Indicates the start of the HTML file.
+        [parameter(ParameterSetName = "HTMLStart", Mandatory = $true)]
+        [switch]
+        $HTMLStart,
+        
+        # Indicates the end of the HTML file.
+        [parameter(ParameterSetName = "HTMLEnd", Mandatory = $true)]
+        [switch]
+        $HTMLEnd
     )
 
-    $TableCSS = @"
-<style>l
-TABLE {border-width: 1px; border-style: solid; border-color: black; border-collapse: collapse;}
-TH {border-width: 1px;padding: 3px; border-style: solid;border-color: black; background-color: #6495ED;}
-TD {border-width: 1px;padding: 3px; border-style: solid;border-color: black;}
-.odd  { background-color:#ffffff; }
-.even { background-color:#dddddd; }
-</style>
+    $startHTML = @"
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        .collapsible {
+            background-color: #777;
+            color: white;
+            cursor: pointer;
+            padding: 18px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 15px;
+        }
+
+        .active,
+        .collapsible:hover {
+            background-color: #555;
+        }
+
+        .content {
+            padding: 0 18px;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.2s ease-out;
+            background-color: #f1f1f1;
+        }
+
+        TABLE {
+            border-width: 1px;
+            border-style: solid;
+            border-color: black;
+            border-collapse: collapse;
+        }
+
+        TH {
+            border-width: 1px;
+            padding: 3px;
+            border-style: solid;
+            border-color: black;
+            background-color: #6495ED;
+        }
+
+        TD {
+            border-width: 1px;
+            padding: 3px;
+            border-style: solid;
+            border-color: black;
+        }
+
+        .odd {
+            background-color: #ffffff;
+        }
+
+        .even {
+            background-color: #dddddd;
+        }
+        .collapsible:after {
+            content: '\02795'; /* Unicode character for "plus" sign (+) */
+            font-size: 13px;
+            color: white;
+            float: right;
+            margin-left: 5px;
+          }
+          
+          .active:after {
+            content: "\2796"; /* Unicode character for "minus" sign (-) */
+          }
+          
+    </style>
+</head>
+
+<body>
 "@
 
-    try { 
-        if ($Content -eq "") {
-            out-file -filepath $Script:Outfile -inputobject ($Table | ConvertTo-Html -Property $Columns -Fragment -PreContent $TableCSS) -append
+    $endHTML = @"
+    <script>
+    var coll = document.getElementsByClassName("collapsible");
+    var i;
+    
+    for (i = 0; i < coll.length; i++) {
+      coll[i].addEventListener("click", function() {
+        this.classList.toggle("active");
+        var content = this.nextElementSibling;
+        if (content.style.maxHeight){
+          content.style.maxHeight = null;
+        } else {
+          content.style.maxHeight = content.scrollHeight + "px";
+        } 
+      });
+    }
+    </script>
+</body>
+
+</html>
+"@
+
+    $CollapsableStart = @"
+    <button class="collapsible">Open Collapsible</button>
+    <div class="content">
+"@
+
+    try {   
+        if ($Table -ne $null) {
+            Out-File -FilePath $Script:Outfile -InputObject $CollapsableStart -append
+            out-file -filepath $Script:Outfile -inputobject ($Table | ConvertTo-Html -Property $Columns -Fragment) -append
+            Out-File -FilePath $Script:Outfile -InputObject "</div>" -append
         }
-        else {
+        elseif ($Content -ne "") {
             out-file -filepath $Script:Outfile -InputObject $OpeningTag, $Content, $ClosingTag -append
+        }
+        elseif ($HTMLStart) {
+            out-file -filepath $Script:Outfile -InputObject $startHTML -Append
+        }
+        elseif ($HTMLEnd) {
+            out-file -filepath $Script:Outfile -InputObject $endHTML -Append
         }
     }
     catch {
