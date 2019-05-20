@@ -85,7 +85,7 @@ param(
     $Username,
 
     # Specifies the sections of the script to run.
-    # This parameter is optional. If it is not used every section will be ran.
+    # This parameter is optional. If it is not used every section will be run.
     [parameter(ParameterSetName = "WindowsAuthentication")]
     [parameter(ParameterSetName = "SQLAuthentication")]
     [ValidateSet('All', 'CIS', 'STIG', 'UserManagement')]
@@ -214,7 +214,7 @@ function SqlConnectionBuilder {
     Builds and returns the SqlConnection object.
     
     .DESCRIPTION
-    Creates an ConnectionString based on the global script variables $Script:Server and $Script:Database.
+    Creates a ConnectionString based on the global script variables $Script:Server and $Script:Database.
     
     .EXAMPLE
     SqlConnectionBuilder
@@ -1403,8 +1403,8 @@ function HTMLPrinter {
     Converts the gathered data to HTML and sends it to the output file.
     
     .DESCRIPTION
-    The HTMLPrinter will take the parameters that are send and use them to format the gathered data to HTML.
-    The formatted HTML will then be send to the output file.
+    The HTMLPrinter will take the parameters that are sent and use them to format the gathered data to HTML.
+    The formatted HTML will then be sent to the output file.
     There are two sets of parameters that can be used with this method.
     The first set can be used to print headers, text and the likes.
     The second set can be used to print tables.
