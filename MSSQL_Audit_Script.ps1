@@ -150,7 +150,7 @@ function Startup {
         $Script:AllDatabases = $true
     }
 
-    HTMLPrinter -OpeningTag "<h1>" -Content "Basic information" -ClosingTag "</h1>"
+    HTMLPrinter -OpeningTag "<h1 id='Basic_information' class='headers header1'>" -Content "Basic information" -ClosingTag "</h1>"
     HTMLPrinter -OpeningTag "<p>" -Content "Using $Script:Server as target server." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "Using $Script:Database as target database." -ClosingTag "</p>"
 
@@ -298,7 +298,7 @@ function CheckFullVersion {
                 ;"
     $Dataset = DataCollector $SqlQuery
 
-    HTMLPrinter -OpeningTag "<h3>" -Content "Server version:" -ClosingTag "</h3>"
+    HTMLPrinter -OpeningTag "<h3 id='Server_version' class='headers'>" -Content "Server version" -ClosingTag "</h3>"
     HTMLPrinter -Table $Dataset -Columns @("Version")
 }
 
@@ -353,7 +353,7 @@ function GenerateDatabasesInfo {
     $Script:Database = $Script:OriginalDatabase
     SqlConnectionBuilder
 
-    HTMLPrinter -OpeningTag "<h3>" -Content "This server contains the following databases:" -ClosingTag "</h3>"
+    HTMLPrinter -OpeningTag "<h3 id='Databases' class='headers'>" -Content "Databases" -ClosingTag "</h3>"
     HTMLPrinter -Table $Script:DatabasesInfo -Columns @("name", "create_date", "number_of_users")
 }
 
@@ -482,6 +482,8 @@ function SecurityChecklists {
     * Section 7.2  (Scored)
     * Section 8.1  (Not Scored) (Manual)
     #>
+
+    HTMLPrinter -OpeningTag "<h1 id='CIS_benchmark' class='headers'>" -Content "CIS benchmark" -ClosingTag "</h1>"
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 1.1.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 1.1.
@@ -1170,7 +1172,8 @@ function UserManagement {
     #>
 
     Write-Host "###### Now checking User Management"
-    HTMLPrinter -OpeningTag "<h3>" -Content "User Management" -ClosingTag "</h3>"
+    HTMLPrinter -OpeningTag "<h1 id='User_management' class='headers'>" -Content "User management" -ClosingTag "</h1>"
+    HTMLPrinter -OpeningTag "<h3 id='Login_to_user_mapping' class='headers'>" -Content "Login to user mapping" -ClosingTag "</h3>"
 
     # Step 1: Maps each login to all it's corresponding database users.
     $SqlQuery = "EXEC
@@ -1192,6 +1195,7 @@ function UserManagement {
     }
     HTMLPrinter -Table $TempTable -Columns @("LoginName", "DBName", "UserName", "AliasName")
 
+    HTMLPrinter -OpeningTag "<h3 id='Logins_permissions' class='headers'>" -Content "Logins permissions" -ClosingTag "</h3>"
     # Step 2: Audit who is in server-level roles.
     $SqlQuery = "SELECT
                     @@SERVERNAME                     AS server_name,
@@ -1361,16 +1365,18 @@ function UserManagement {
                 ;"
 
     if ($Script:AllDatabases) {
+        HTMLPrinter -OpeningTag "<h3 id='Databases' class='headers'>" -Content "Databases" -ClosingTag "</h3>"
         foreach ($db in $Script:DatabasesInfo) {
             $Script:Database = $db.name
             SqlConnectionBuilder
+            HTMLPrinter -OpeningTag "<h3 id='$Script:Database' class='headers'>" -Content $Script:Database -ClosingTag "</h3>"
 
             $Dataset = DataCollector $SqlQueryDBAccess
             HTMLPrinter -OpeningTag "<p>" -Content "A list of users and the roles they are in." -ClosingTag "</p>"
             HTMLPrinter -Table $Dataset -Columns @("server_name", "database_name", "user_name", "role_name", "login_name", "login_type", "date_created", "last_modified")
 
-            $Dataset = DataCollector $SqlQueryDBRoles
             if ($Dataset.Tables.Count -ne 0) {
+                $Dataset = DataCollector $SqlQueryDBRoles
                 HTMLPrinter -OpeningTag "<p>" -Content "A list of Database level roles, defining what they are, and what they can do." -ClosingTag "</p>"
                 HTMLPrinter -OpeningTag "<p>" -Content "Fixed database roles are not shown." -ClosingTag "</p>"
                 HTMLPrinter -Table $Dataset -Columns @("server_name", "database_name", "role_name", "schema_name", "object_name", "permission_name", "state_desc", "grantor", "date_created", "last_modified")
@@ -1386,12 +1392,13 @@ function UserManagement {
         SqlConnectionBuilder
     }
     else {
+        HTMLPrinter -OpeningTag "<h3 id='$Script:Database' class='headers'>" -Content $Script:Database -ClosingTag "</h3>"
         $Dataset = DataCollector $SqlQueryDBAccess
         HTMLPrinter -OpeningTag "<p>" -Content "A list of users and the roles they are in." -ClosingTag "</p>"
         HTMLPrinter -Table $Dataset -Columns @("server_name", "database_name", "user_name", "role_name", "login_name", "login_type", "date_created", "last_modified")
 
-        $Dataset = DataCollector $SqlQueryDBRoles
         if ($Dataset.Tables.Count -ne 0) {
+            $Dataset = DataCollector $SqlQueryDBRoles
             HTMLPrinter -OpeningTag "<p>" -Content "A list of Database level roles, defining what they are, and what they can do." -ClosingTag "</p>"
             HTMLPrinter -OpeningTag "<p>" -Content "Fixed database roles are not shown." -ClosingTag "</p>"
             HTMLPrinter -Table $Dataset -Columns @("server_name", "database_name", "role_name", "schema_name", "object_name", "permission_name", "state_desc", "grantor", "date_created", "last_modified")    
@@ -1484,95 +1491,173 @@ function HTMLPrinter {
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        .collapsible {
-            background-color: #777;
-            color: white;
-            cursor: pointer;
-            padding: 18px;
-            width: 100%;
-            border: none;
-            text-align: left;
-            outline: none;
-            font-size: 15px;
-        }
-
-        .active,
-        .collapsible:hover {
-            background-color: #555;
-        }
-
-        .content {
-            padding: 0 18px;
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.2s ease-out;
-            background-color: #f1f1f1;
-        }
-
-        TABLE {
-            border-width: 1px;
-            border-style: solid;
-            border-color: black;
-            border-collapse: collapse;
-        }
-
-        TH {
-            border-width: 1px;
-            padding: 3px;
-            border-style: solid;
-            border-color: black;
-            background-color: #6495ED;
-        }
-
-        TD {
-            border-width: 1px;
-            padding: 3px;
-            border-style: solid;
-            border-color: black;
-        }
-
-        .odd {
-            background-color: #ffffff;
-        }
-
-        .even {
-            background-color: #dddddd;
-        }
-        .collapsible:after {
-            content: '\02795'; /* Unicode character for "plus" sign (+) */
-            font-size: 13px;
-            color: white;
-            float: right;
-            margin-left: 5px;
-          }
-          
-          .active:after {
-            content: "\2796"; /* Unicode character for "minus" sign (-) */
-          }
-          
+    body, html{
+        /* To make use of full height of page*/
+        margin: 0;
+        padding: 0;
+    }
+    
+    
+            .collapsible {
+                background-color: #777;
+                color: white;
+                cursor: pointer;
+                padding: 18px;
+                width: 20%;
+                border: none;
+                text-align: left;
+                outline: none;
+                font-size: 15px;
+            }
+    
+            .active,
+            .collapsible:hover {
+                background-color: #555;
+            }
+    
+            .content {
+                padding: 0 18px;
+                max-height: 0;
+                overflow: hidden;
+                transition: max-height 0.2s ease-out;
+                background-color: #f1f1f1;
+            }
+    
+            TABLE {
+                border-width: 1px;
+                border-style: solid;
+                border-color: black;
+                border-collapse: collapse;
+            }
+    
+            TH {
+                border-width: 1px;
+                padding: 3px;
+                border-style: solid;
+                border-color: black;
+                background-color: #6495ED;
+            }
+    
+            TD {
+                border-width: 1px;
+                padding: 3px;
+                border-style: solid;
+                border-color: black;
+            }
+    
+            .odd {
+                background-color: #ffffff;
+            }
+    
+            .even {
+                background-color: #dddddd;
+            }
+            .collapsible:after {
+                content: '\02795'; /* Unicode character for "plus" sign (+) */
+                font-size: 13px;
+                color: white;
+                float: right;
+                margin-left: 5px;
+              }
+              
+              .active:after {
+                content: "\2796"; /* Unicode character for "minus" sign (-) */
+              }
+    
+              .fixed {
+                position: fixed;
+                overflow-y: scroll;
+                max-width: 20%;
+                max-height: 100%;
+            }
+    
+            .auditedResults {
+                margin-left: 20%;
+            }
+    
+            #Basic_information {
+                margin-top: 0;
+            }
+            #OTP {
+                margin-top: 0;
+            }
     </style>
 </head>
 
 <body>
+
+<div class="content fixed" id='ToC2'>
+<nav role='navigation' id='ToC'>
+
+</nav>
+</div>
+<div class="auditedResults">
 "@
 
     $endHTML = @"
+    </div>
     <script>
-    var coll = document.getElementsByClassName("collapsible");
-    var i;
+    var ToC = "<h2 id='OTP'>On this page:</h2>";
+
+    var headers = document.getElementsByClassName("headers");
+    for (i = 0; i < headers.length; i++) {
+        var current = headers[i];
+        console.log(current);
+
+        title = current.textContent;
+        console.log(title);
+        var type = current.tagName;
+        console.log(type);
+        link = "#" + current.getAttribute("id");
+        console.log(link)
+
     
-    for (i = 0; i < coll.length; i++) {
-      coll[i].addEventListener("click", function() {
-        this.classList.toggle("active");
-        var content = this.nextElementSibling;
-        if (content.style.maxHeight){
-          content.style.maxHeight = null;
-        } else {
-          content.style.maxHeight = content.scrollHeight + "px";
-        } 
-      });
-    }
-    </script>
+        var newLine
+    
+        if (type == 'H1') {
+            newLine =
+            "<ul>" +
+            "<li>" +
+              "<a href='" + link + "'>" +
+                title +
+              "</a>" +
+            "</li>" +
+            "</ul>";
+        }
+        if (type == 'H3') {
+            newLine =
+            "<ul style='padding-left: 60px;'>" +
+            "<li>" +
+              "<a href='" + link + "'>" +
+                title +
+              "</a>" +
+            "</li>" +
+            "</ul>";
+        }
+    
+        ToC += newLine;
+        }
+
+      document.getElementById('ToC').innerHTML = ToC
+
+
+
+      var coll = document.getElementsByClassName("collapsible");
+      var i;
+      
+      for (i = 0; i < coll.length; i++) {
+        coll[i].addEventListener("click", function() {
+          this.classList.toggle("active");
+          var content = this.nextElementSibling;
+          if (content.style.maxHeight){
+            content.style.maxHeight = null;
+          } else {
+            content.style.maxHeight = content.scrollHeight + "px";
+          } 
+        });
+      }
+</script>
+    
 </body>
 
 </html>
