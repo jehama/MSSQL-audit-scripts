@@ -1521,6 +1521,7 @@ function HTMLPrinter {
                 overflow: hidden;
                 transition: max-height 0.2s ease-out;
                 background-color: #f1f1f1;
+                overflow-x: auto
             }
     
             TABLE {
@@ -1528,6 +1529,7 @@ function HTMLPrinter {
                 border-style: solid;
                 border-color: black;
                 border-collapse: collapse;
+                margin-bottom: 20px;
             }
     
             TH {
