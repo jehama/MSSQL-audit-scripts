@@ -1175,6 +1175,52 @@ function UserManagement {
     HTMLPrinter -OpeningTag "<h1 id='User_management' class='headers'>" -Content "User management" -ClosingTag "</h1>"
     HTMLPrinter -OpeningTag "<h3 id='Login_to_user_mapping' class='headers'>" -Content "Login to user mapping" -ClosingTag "</h3>"
 
+    # Setup for the authorization matrix.
+    $AuthorizationMatrix = New-Object System.Data.DataTable
+    $AuthorizationMatrix.Columns.Add("login_name", "System.String") | Out-Null
+    $AuthorizationMatrix.Columns.Add("server_name", "System.String") | Out-Null
+    $AuthorizationMatrix.Columns.Add("login_type", "System.String") | Out-Null
+    $AuthorizationMatrix.Columns.Add("srv_role_name", "System.String") | Out-Null
+    $AuthorizationMatrix.Columns.Add("srv_schema_name", "System.String") | Out-Null
+    $AuthorizationMatrix.Columns.Add("srv_object_name", "System.String") | Out-Null
+    $AuthorizationMatrix.Columns.Add("srv_object_type", "System.String") | Out-Null
+    $AuthorizationMatrix.Columns.Add("srv_permission_name", "System.String") | Out-Null
+    $AuthorizationMatrix.Columns.Add("srv_permission_state", "System.String") | Out-Null
+    $AuthorizationMatrix.Columns.Add("db_name", "System.String") | Out-Null
+    $AuthorizationMatrix.Columns.Add("db_user_name", "System.String") | Out-Null
+    $AuthorizationMatrix.Columns.Add("db_role_name", "System.String") | Out-Null
+    $AuthorizationMatrix.Columns.Add("db_schema_name", "System.String") | Out-Null
+    $AuthorizationMatrix.Columns.Add("db_object_name", "System.String") | Out-Null
+    $AuthorizationMatrix.Columns.Add("db_object_type", "System.String") | Out-Null
+    $AuthorizationMatrix.Columns.Add("db_permission_name", "System.String") | Out-Null
+    $AuthorizationMatrix.Columns.Add("db_permission_state", "System.String") | Out-Null
+    $AuthorizationMatrix.Columns.Add("notes", "System.String") | Out-Null
+    
+    # Step 0: Gather all non server role principal logins (used for the authorization matrix)
+    $SqlQuery = "SELECT
+                    @@SERVERNAME AS server_name,
+                    SP.name      AS login_name,
+                    SP.type_desc AS login_type
+                FROM
+                    sys.server_principals AS SP
+                WHERE
+                    SP.type != 'R'
+                ORDER BY
+                    SP.name
+                ;"
+    $Dataset = DataCollector $SqlQuery
+    foreach($Row in $Dataset) {
+        if ($Row.login_name -ne "sa" -and $Row.login_name -notlike "##MS_*" -and $Row.login_name -notlike "NT Service\*" -and $Row.login_name -notlike "NT AUTHORITY\*" ) {
+            $new_row = $AuthorizationMatrix.NewRow()
+
+            $new_row.login_name = $Row.login_name
+            $new_row.server_name = $Row.server_name
+            $new_row.login_type = $Row.login_type
+    
+            $AuthorizationMatrix.Rows.Add($new_row)
+        }
+    }
+
     # Step 1: Maps each login to all it's corresponding database users.
     $SqlQuery = "EXEC
                     sp_MSloginmappings
@@ -1214,6 +1260,19 @@ function UserManagement {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "A list of who is in server-level roles" -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("server_name", "server_role", "member_name", "type_desc", "date_created", "last_modified")
+    foreach($Row in $Dataset) {
+        if ($Row.member_name -ne "sa" -and $Row.member_name -notlike "##MS_*" -and $Row.member_name -notlike "NT Service\*" -and $Row.member_name -notlike "NT AUTHORITY\*" ) {
+                $new_row = $AuthorizationMatrix.NewRow()
+
+                $new_row.login_name = $Row.member_name
+                $new_row.server_name = $Row.server_name
+                $new_row.login_type = $Row.type_desc
+                $new_row.srv_role_name = $Row.server_role
+
+
+            $AuthorizationMatrix.Rows.Add($new_row)
+        }
+    }
 
     # Step 3: Audit the permissions of non-fixed server-level roles.
     $SqlQuery = "SELECT
@@ -1245,6 +1304,7 @@ function UserManagement {
                     ISNULL(o.name, '.')         AS object_name,
                     O.type_desc                 AS type_desc,
                     SPRIN.name                  AS grantee,
+                    SPRIN.type_desc             AS login_type,
                     GRANTOR.name                AS grantor,
                     SPRIN.type_desc             AS principal_type_desc,
                     SPER.permission_name        AS permission_name,
@@ -1271,6 +1331,22 @@ function UserManagement {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "A list of permissions directly granted or denied to logins." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("server_name", "schema_name", "object_name", "type_desc", "grantee", "grantor", "principal_type_desc", "permission_name", "permission_state_desc")
+    foreach($Row in $Dataset) {
+        if ($Row.grantee -ne "sa" -and $Row.grantee -notlike "##MS_*" -and $Row.grantee -notlike "NT Service\*" -and $Row.grantee -notlike "NT AUTHORITY\*" ) {
+            $new_row = $AuthorizationMatrix.NewRow()
+
+            $new_row.login_name = $Row.grantee
+            $new_row.server_name = $Row.server_name
+            $new_row.login_type = $Row.principal_type_desc
+            $new_row.srv_schema_name = $Row.schema_name
+            $new_row.srv_object_name = $Row.object_name
+            $new_row.srv_object_type = $Row.type_desc
+            $new_row.srv_permission_name = $Row.permission_name
+            $new_row.srv_permission_state = $Row.permission_state_desc
+
+        $AuthorizationMatrix.Rows.Add($new_row)
+        }
+    }
 
     # Step 5: Audit who has access to the database.
     $SqlQueryDBAccess = "SELECT
@@ -1374,6 +1450,20 @@ function UserManagement {
             $Dataset = DataCollector $SqlQueryDBAccess
             HTMLPrinter -OpeningTag "<p>" -Content "A list of users and the roles they are in." -ClosingTag "</p>"
             HTMLPrinter -Table $Dataset -Columns @("server_name", "database_name", "user_name", "role_name", "login_name", "login_type", "date_created", "last_modified")
+            foreach($Row in $Dataset) {
+                if ($Row.user_name -ne "guest" -and $Row.user_name -ne "INFORMATION_SCHEMA" -and $Row.user_name -ne "MS_DataCollectorInternalUser" -and $Row.user_name -ne "sys" -and $Row.login_name -ne "sa" -and $Row.login_name -notlike "##MS_*" -and $Row.login_name -notlike "NT Service\*" -and $Row.login_name -notlike "NT AUTHORITY\*") {
+                    $new_row = $AuthorizationMatrix.NewRow()
+        
+                    $new_row.login_name = $Row.login_name
+                    $new_row.server_name = $Row.server_name
+                    $new_row.login_type = $Row.login_type
+                    $new_row.db_name = $Row.database_name
+                    $new_row.db_user_name = $Row.user_name
+                    $new_row.db_role_name = $Row.role_name
+        
+                $AuthorizationMatrix.Rows.Add($new_row)
+                }
+            }
 
             if ($Dataset.Tables.Count -ne 0) {
                 $Dataset = DataCollector $SqlQueryDBRoles
@@ -1386,6 +1476,24 @@ function UserManagement {
                 $Dataset = DataCollector $SqlQueryDBRights
                 HTMLPrinter -OpeningTag "<p>" -Content "Audit any users that have access to specific objects outside of a role" -ClosingTag "</p>"
                 HTMLPrinter -Table $Dataset -Columns @("server_name", "database_name", "schema_name", "object_name", "type_desc", "grantee", "login_name", "grantor", "principal_type_desc", "permission_name", "permission_type_desc")    
+                foreach($Row in $Dataset) {
+                    if ($Row.user_name -ne "guest" -and $Row.user_name -ne "INFORMATION_SCHEMA" -and $Row.user_name -ne "MS_DataCollectorInternalUser" -and $Row.user_name -ne "sys" -and $Row.login_name -ne "sa" -and $Row.login_name -notlike "##MS_*" -and $Row.login_name -notlike "NT Service\*" -and $Row.login_name -notlike "NT AUTHORITY\*") {
+                        $new_row = $AuthorizationMatrix.NewRow()
+
+                        $new_row.login_name = $Row.login_name
+                        $new_row.server_name = $Row.server_name
+                        $new_row.login_type = $Row.principal_type_desc
+                        $new_row.db_name = $Row.database_name
+                        $new_row.db_user_name = $Row.grantee
+                        $new_row.db_schema_name = $Row.schema_name
+                        $new_row.db_object_name = $Row.object_name
+                        $new_row.db_object_type = $Row.type_desc
+                        $new_row.db_permission_name = $Row.permission_name
+                        $new_row.db_permission_state = $Row.permission_state_desc
+
+                        $AuthorizationMatrix.Rows.Add($new_row)
+                    }
+                }
             }
         }
         $Script:Database = $Script:OriginalDatabase
@@ -1396,6 +1504,20 @@ function UserManagement {
         $Dataset = DataCollector $SqlQueryDBAccess
         HTMLPrinter -OpeningTag "<p>" -Content "A list of users and the roles they are in." -ClosingTag "</p>"
         HTMLPrinter -Table $Dataset -Columns @("server_name", "database_name", "user_name", "role_name", "login_name", "login_type", "date_created", "last_modified")
+        foreach($Row in $Dataset) {
+            if ($Row.user_name -ne "guest" -and $Row.user_name -ne "INFORMATION_SCHEMA" -and $Row.user_name -ne "MS_DataCollectorInternalUser" -and $Row.user_name -ne "sys" -and $Row.login_name -ne "sa" -and $Row.login_name -notlike "##MS_*" -and $Row.login_name -notlike "NT Service\*" -and $Row.login_name -notlike "NT AUTHORITY\*") {
+                $new_row = $AuthorizationMatrix.NewRow()
+
+                $new_row.login_name = $Row.login_name
+                $new_row.server_name = $Row.server_name
+                $new_row.login_type = $Row.login_type
+                $new_row.db_name = $Row.database_name
+                $new_row.db_user_name = $Row.user_name
+                $new_row.db_role_name = $Row.role_name
+
+                $AuthorizationMatrix.Rows.Add($new_row)
+            }
+        }
 
         if ($Dataset.Tables.Count -ne 0) {
             $Dataset = DataCollector $SqlQueryDBRoles
@@ -1406,10 +1528,55 @@ function UserManagement {
 
         $Dataset = DataCollector $SqlQueryDBRights
         if ($Dataset.Tables.Count -ne 0) {
-        HTMLPrinter -OpeningTag "<p>" -Content "Audit any users that have access to specific objects outside of a role" -ClosingTag "</p>"
-        HTMLPrinter -Table $Dataset -Columns @("server_name", "database_name", "schema_name", "object_name", "type_desc", "grantee", "login_name", "grantor", "principal_type_desc", "permission_name", "permission_type_desc")
+            HTMLPrinter -OpeningTag "<p>" -Content "Audit any users that have access to specific objects outside of a role" -ClosingTag "</p>"
+            HTMLPrinter -Table $Dataset -Columns @("server_name", "database_name", "schema_name", "object_name", "type_desc", "grantee", "login_name", "grantor", "principal_type_desc", "permission_name", "permission_type_desc")
+            foreach($Row in $Dataset) {
+                if ($Row.user_name -ne "guest" -and $Row.user_name -ne "INFORMATION_SCHEMA" -and $Row.user_name -ne "MS_DataCollectorInternalUser" -and $Row.user_name -ne "sys" -and $Row.login_name -ne "sa" -and $Row.login_name -notlike "##MS_*" -and $Row.login_name -notlike "NT Service\*" -and $Row.login_name -notlike "NT AUTHORITY\*") {
+                $new_row = $AuthorizationMatrix.NewRow()
+
+                $new_row.login_name = $Row.login_name
+                $new_row.server_name = $Row.server_name
+                $new_row.login_type = $Row.principal_type_desc
+                $new_row.db_name = $Row.database_name
+                $new_row.db_user_name = $Row.grantee
+                $new_row.db_schema_name = $Row.schema_name
+                $new_row.db_object_name = $Row.object_name
+                $new_row.db_object_type = $Row.type_desc
+                $new_row.db_permission_name = $Row.permission_name
+                $new_row.db_permission_state = $Row.permission_state_desc
+
+                $AuthorizationMatrix.Rows.Add($new_row)
+                }
+            }
         }
     }
+
+
+    $dv = New-Object System.Data.DataView
+    $dv = $AuthorizationMatrix.DefaultView;
+    $dv.Sort = "login_name, server_name, db_name, db_role_name, db_schema_name, db_object_type, db_object_name, db_permission_state, db_permission_name, srv_role_name, srv_schema_name, srv_object_type, srv_object_name, srv_permission_state, srv_permission_name";
+    $AuthorizationMatrix = $dv.ToTable();
+
+    HTMLPrinter -Table $AuthorizationMatrix -Columns @(
+    "login_name",
+    "server_name",
+    "login_type",
+    "srv_role_name",
+    "srv_schema_name",
+    "srv_object_name",
+    "srv_object_type",
+    "srv_permission_name",
+    "srv_permission_state",
+    "db_name",
+    "db_user_name",
+    "db_role_name",
+    "db_schema_name",
+    "db_object_name",
+    "db_object_type",
+    "db_permission_name",
+    "db_permission_state",
+    "notes"
+    )
 }
 
 function HTMLPrinter {
