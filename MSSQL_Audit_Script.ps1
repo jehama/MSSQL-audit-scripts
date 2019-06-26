@@ -1557,6 +1557,7 @@ function UserManagement {
     $dv.Sort = "login_name, server_name, db_name, db_role_name, db_schema_name, db_object_type, db_object_name, db_permission_state, db_permission_name, srv_role_name, srv_schema_name, srv_object_type, srv_object_name, srv_permission_state, srv_permission_name";
     $AuthorizationMatrix = $dv.ToTable();
 
+    HTMLPrinter -OpeningTag "<h1 id='Authorizationmatrix' class='headers'>" -Content "Authorizationmatrix" -ClosingTag "</h1>"
     HTMLPrinter -Table $AuthorizationMatrix -Columns @(
     "login_name",
     "server_name",
