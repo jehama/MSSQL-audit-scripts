@@ -1657,100 +1657,7 @@ function HTMLPrinter {
 
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-    body, html{
-        /* To make use of full height of page*/
-        margin: 0;
-        padding: 0;
-    }
-    
-    
-            .collapsible {
-                background-color: #777;
-                color: white;
-                cursor: pointer;
-                padding: 18px;
-                width: 20%;
-                border: none;
-                text-align: left;
-                outline: none;
-                font-size: 15px;
-            }
-    
-            .active,
-            .collapsible:hover {
-                background-color: #555;
-            }
-    
-            .content {
-                padding: 0 18px;
-                max-height: 0;
-                overflow: hidden;
-                transition: max-height 0.2s ease-out;
-                background-color: #f1f1f1;
-                overflow-x: auto
-            }
-    
-            TABLE {
-                border-width: 1px;
-                border-style: solid;
-                border-color: black;
-                border-collapse: collapse;
-                margin-bottom: 20px;
-            }
-    
-            TH {
-                border-width: 1px;
-                padding: 3px;
-                border-style: solid;
-                border-color: black;
-                background-color: #6495ED;
-            }
-    
-            TD {
-                border-width: 1px;
-                padding: 3px;
-                border-style: solid;
-                border-color: black;
-            }
-    
-            .odd {
-                background-color: #ffffff;
-            }
-    
-            .even {
-                background-color: #dddddd;
-            }
-            .collapsible:after {
-                content: '\02795'; /* Unicode character for "plus" sign (+) */
-                font-size: 13px;
-                color: white;
-                float: right;
-                margin-left: 5px;
-              }
-              
-              .active:after {
-                content: "\2796"; /* Unicode character for "minus" sign (-) */
-              }
-    
-              .fixed {
-                position: fixed;
-                overflow-y: scroll;
-                max-width: 20%;
-                max-height: 100%;
-            }
-    
-            .auditedResults {
-                margin-left: 20%;
-            }
-    
-            #Basic_information {
-                margin-top: 0;
-            }
-            #OTP {
-                margin-top: 0;
-            }
-    </style>
+    <link rel='stylesheet' type='text/css' href='./Assets/Style_Sheets/main.css' />
 </head>
 
 <body>
@@ -1771,14 +1678,10 @@ function HTMLPrinter {
     var headers = document.getElementsByClassName("headers");
     for (i = 0; i < headers.length; i++) {
         var current = headers[i];
-        console.log(current);
 
         title = current.textContent;
-        console.log(title);
         var type = current.tagName;
-        console.log(type);
         link = "#" + current.getAttribute("id");
-        console.log(link)
 
     
         var newLine
