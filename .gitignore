@@ -1,1 +1,3 @@
-audit-MSSQL-*.html
+Reports/*
+
+configuration.json

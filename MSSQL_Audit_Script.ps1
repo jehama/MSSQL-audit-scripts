@@ -127,7 +127,8 @@ function Startup {
     }
 
     #Sets the output file. If the file already exists the user is prompted to override it or stop the script.
-    $Script:Outfile = "audit-MSSQL-" + $Script:Server + ".html"
+    $date = Get-Date -Format "yyyyMMdd"
+    $Script:Outfile = "./Reports/" + $date + "-audit-report-" + $Script:Server + ".html"
     if (Test-Path -Path $Script:Outfile) {
         Write-Host "The output file already exists, would you like to overwrite it?"
         Remove-Item $Script:Outfile -Confirm
