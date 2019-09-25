@@ -1,0 +1,100 @@
+/* Remove some default margins and paddings. */
+body,
+html{
+  margin: 0;
+  padding: 0;
+}
+
+/* The collapse and button */
+.collapsible {
+  background-color: #777;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 15px;
+  outline: none;
+  padding: 18px;
+  text-align: left;
+  width: 20%;
+}
+
+.active,
+.collapsible:hover {
+  background-color: #555;
+}
+
+.collapsible:after {
+  color: white;
+  /* \02795 is the unicode character for the "plus" sign (+) */
+  content: '\02795';
+  float: right;
+  font-size: 13px;
+  margin-left: 5px;
+}
+
+.active:after {
+  /* \2796 is the unicode character for "minus" sign (-) */
+  content: "\2796";
+}
+
+.content {
+  background-color: #f1f1f1;
+  max-height: 0;
+  overflow: hidden;
+  overflow-x: auto;
+  padding: 0 18px;
+  transition: max-height 0.2s ease-out;
+}
+
+/* The table */
+TABLE {
+  border-collapse: collapse;
+  border-color: black;
+  border-style: solid;
+  border-width: 1px;
+  margin-bottom: 20px;
+}
+
+TH {
+  background-color: #6495ED;
+  border-color: black;
+  border-style: solid;
+  border-width: 1px;
+  padding: 3px;
+}
+
+TD {
+  border-color: black;
+  border-style: solid;
+  border-width: 1px;
+  padding: 3px;
+}
+
+.odd {
+  background-color: #ffffff;
+}
+
+.even {
+  background-color: #dddddd;
+}
+
+/* The index */
+.fixed {
+  max-height: 100%;
+  /* The max width is used to keep room for the rapport which is displayed on the right. */
+  max-width: 20%;
+  overflow-y: scroll;
+  position: fixed;
+}
+
+/* The rapport */
+.auditedResults {
+  /* A margin to the left is used to make room for the index which is displayed on the left. */
+  margin-left: 20%;
+}
+
+/* Remove the margin-top since they are supposed to be on the top of the page.*/
+#Basic_information,
+#OTP {
+  margin-top: 0;
+}

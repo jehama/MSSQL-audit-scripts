@@ -1652,109 +1652,24 @@ function HTMLPrinter {
         $HTMLEnd
     )
 
-    $startHTML = @"
-<!DOCTYPE html>
-<html>
-
-<head>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel='stylesheet' type='text/css' href='./Assets/Style_Sheets/main.css' />
-</head>
-
-<body>
-
-<div class="content fixed" id='ToC2'>
-<nav role='navigation' id='ToC'>
-
-</nav>
-</div>
-<div class="auditedResults">
-"@
-
-    $endHTML = @"
-    </div>
-    <script>
-    var ToC = "<h2 id='OTP'>On this page:</h2>";
-
-    var headers = document.getElementsByClassName("headers");
-    for (i = 0; i < headers.length; i++) {
-        var current = headers[i];
-
-        title = current.textContent;
-        var type = current.tagName;
-        link = "#" + current.getAttribute("id");
-
-    
-        var newLine
-    
-        if (type == 'H1') {
-            newLine =
-            "<ul>" +
-            "<li>" +
-              "<a href='" + link + "'>" +
-                title +
-              "</a>" +
-            "</li>" +
-            "</ul>";
-        }
-        if (type == 'H3') {
-            newLine =
-            "<ul style='padding-left: 60px;'>" +
-            "<li>" +
-              "<a href='" + link + "'>" +
-                title +
-              "</a>" +
-            "</li>" +
-            "</ul>";
-        }
-    
-        ToC += newLine;
-        }
-
-      document.getElementById('ToC').innerHTML = ToC
-
-
-
-      var coll = document.getElementsByClassName("collapsible");
-      var i;
-      
-      for (i = 0; i < coll.length; i++) {
-        coll[i].addEventListener("click", function() {
-          this.classList.toggle("active");
-          var content = this.nextElementSibling;
-          if (content.style.maxHeight){
-            content.style.maxHeight = null;
-          } else {
-            content.style.maxHeight = content.scrollHeight + "px";
-          } 
-        });
-      }
-</script>
-    
-</body>
-
-</html>
-"@
-
-    $CollapsableStart = @"
-    <button class="collapsible">Open Table</button>
-    <div class="content">
-"@
+    $startHTML = Get-Content ./Assets/Rapport_Builder/HTML_Snippets/Rapport_Start.html
+    $endHTML = Get-Content ./Assets/Rapport_Builder/HTML_Snippets/Rapport_End.html
+    $startCollapsable = Get-Content ./Assets/Rapport_Builder/HTML_Snippets/Collapsable_Start.html
 
     try {   
         if ($Table -ne $null) {
-            Out-File -FilePath $Script:Outfile -InputObject $CollapsableStart -append
-            out-file -filepath $Script:Outfile -inputobject ($Table | ConvertTo-Html -Property $Columns -Fragment) -append
-            Out-File -FilePath $Script:Outfile -InputObject "</div>" -append
+            Out-File -FilePath $Script:Outfile -Encoding utf8 -InputObject $startCollapsable -append
+            out-file -filepath $Script:Outfile -Encoding utf8 -inputobject ($Table | ConvertTo-Html -Property $Columns -Fragment) -append
+            Out-File -FilePath $Script:Outfile -Encoding utf8 -InputObject "</div>" -append
         }
         elseif ($Content -ne "") {
-            out-file -filepath $Script:Outfile -InputObject $OpeningTag, $Content, $ClosingTag -append
+            out-file -filepath $Script:Outfile -Encoding utf8 -InputObject $OpeningTag, $Content, $ClosingTag -append
         }
         elseif ($HTMLStart) {
-            out-file -filepath $Script:Outfile -InputObject $startHTML -Append
+            out-file -filepath $Script:Outfile -Encoding utf8 -InputObject $startHTML -Append
         }
         elseif ($HTMLEnd) {
-            out-file -filepath $Script:Outfile -InputObject $endHTML -Append
+            out-file -filepath $Script:Outfile -Encoding utf8 -InputObject $endHTML -Append
         }
     }
     catch {
