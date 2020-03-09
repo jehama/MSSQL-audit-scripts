@@ -90,8 +90,65 @@ param(
     [parameter(ParameterSetName = "SQLAuthentication")]
     [ValidateSet('All', 'CIS', 'STIG', 'UserManagement')]
     [String[]]
-    $Include = 'All'
+    $Include = 'All',
+
+    # Specifies that a configuration file should be used for the parameters.
+    [parameter(ParameterSetName = "Configuration")]
+    [switch]
+    $Config,
+
+    # Specifies the configuration file to use for the script configuration.
+    # Defaults to ./configuration.xml
+    [parameter(ParameterSetName = "Configuration")]
+    [String[]]
+    $ConfigurationFile = "./configuration.xml"
 )
+
+function Configuration_Parser {
+    <#
+    .SYNOPSIS
+    Parses the configuration file and fills the startup parameters.
+    
+    .DESCRIPTION
+    Parses the XML configuration file that can be use provided on startup.
+    The info in this file will be used to fill in the parameters that can otherwise be provided on startup.
+    
+    .EXAMPLE
+    Configuration_Parser
+    #>
+    [CmdletBinding()]
+    param()
+
+    #Read the xml config file.
+    [xml]$xml_configuration = Get-Content $ConfigurationFile
+    $mssql_xml_configuration = $xml_configuration.configuration.mssql
+
+    # Server
+    $Global:Server = $mssql_xml_Configuration.server.server_name
+
+    # AuthenticationMode
+    if ($mssql_xml_Configuration.server.authentication_mode -eq "Windows_Authentication") {
+        $Global:WindowsAuthentication = $true
+    }
+    elseif ($mssql_xml_Configuration.server.authentication_mode -eq "SQL_Authentication") {
+        $Global:SQLAuthentication = $true
+        $Global:Username = $mssql_xml_Configuration.username
+    }
+    else {
+        Write-Error -Message "Non-existing Authentication method provided in the config file." -Category InvalidArgument -ErrorAction Stop
+    }
+
+    # Username
+    $Global:Username = $mssql_xml_configuration.server.username
+    # Password
+    # Password is currently not supported, it must be entered manually when the script asks for it.
+
+    # Database
+    $Global:Database = $mssql_xml_configuration.server.database
+
+    # Include
+    # TODO add include to the configuration file.
+}
 
 function Startup {
     <#
@@ -115,64 +172,71 @@ function Startup {
 
     # A stopwatch is used to check how long a section of the script has needed to be completed.
     # It is also used to check the total amount of time needed to complete the script.
-    $Script:Stopwatch = New-Object -TypeName System.Diagnostics.Stopwatch
-    $Script:TotalTime = $Script:Stopwatch.Elapsed
-    $Script:Stopwatch.Start()
+    $Global:Stopwatch = New-Object -TypeName System.Diagnostics.Stopwatch
+    $Global:TotalTime = $Global:Stopwatch.Elapsed
+    $Global:Stopwatch.Start()
+
+    # Use the configurationfile if provided.
+    Configuration_Parser
+
+
+    # Load the required imports.
+    Import-Module -Force ./Assets/Modules/MSSQL/Main/mssql.psm1
 
     # The password will not be visible while typing it in.
-    if($SQLAuthentication) {
+    if ($SQLAuthentication) {
         $SecurePassword = Read-Host -AsSecureString "Enter password"
         $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecurePassword)
-        $Script:Password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+        $Global:Password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
     }
 
     #Sets the output file. If the file already exists the user is prompted to override it or stop the script.
     $date = Get-Date -Format "yyyyMMdd"
-    $Script:Outfile = "./Reports/" + $date + "-audit-report-" + $Script:Server + ".html"
-    if (Test-Path -Path $Script:Outfile) {
+    $Global:Outfile = "./Reports/" + $date + "-audit-report-" + $Global:Server + ".html"
+    if (Test-Path -Path $Global:Outfile) {
         Write-Host "The output file already exists, would you like to overwrite it?"
-        Remove-Item $Script:Outfile -Confirm
-        if (Test-Path -Path $Script:Outfile) {
-            Write-Host "Please move the output file: $Script:Outfile"
+        Remove-Item $Global:Outfile -Confirm
+        if (Test-Path -Path $Global:Outfile) {
+            Write-Host "Please move the output file: $Global:Outfile"
             exit
         }
     }
     HTMLPrinter -HTMLStart
 
-    Write-Host "Using $Script:Server as target server"
-    if ($Script:Database -ne "") {
-        Write-Host "Using $Script:Database as target database"
-        $Script:AllDatabases = $false
+    Write-Host "Using $Global:Server as target server"
+    if ($Global:Database -ne "") {
+        Write-Host "Using $Global:Database as target database"
+        $Global:AllDatabases = $false
     }
     else {
         Write-Host "There Currently no database selected."
         Write-Host "Selecting database `"master`" for the connection string"
-        $Script:Database = "master"
-        $Script:AllDatabases = $true
+        $Global:Database = "master"
+        $Global:AllDatabases = $true
     }
 
     HTMLPrinter -OpeningTag "<h1 id='Basic_information' class='headers header1'>" -Content "Basic information" -ClosingTag "</h1>"
-    HTMLPrinter -OpeningTag "<p>" -Content "Using $Script:Server as target server." -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "Using $Script:Database as target database." -ClosingTag "</p>"
+    HTMLPrinter -OpeningTag "<p>" -Content "Using $Global:Server as target server." -ClosingTag "</p>"
+    HTMLPrinter -OpeningTag "<p>" -Content "Using $Global:Database as target database." -ClosingTag "</p>"
 
-    $Script:OriginalDatabase = $Script:Database
+    $Global:OriginalDatabase = $Global:Database
 
     SqlConnectionBuilder    
 
     CheckFullVersion
     GenerateDatabasesInfo
 
-    Write-Host "Setup completed in:                                  " $Script:Stopwatch.Elapsed
-    $Script:TotalTime += $Script:Stopwatch.Elapsed
-    Write-Host "Total time elapsed:                                  " $Script:TotalTime
-    $Script:Stopwatch.Restart()
+    Write-Host "Setup completed in:                                  " $Global:Stopwatch.Elapsed
+    $Global:TotalTime += $Global:Stopwatch.Elapsed
+    Write-Host "Total time elapsed:                                  " $Global:TotalTime
+    $Global:Stopwatch.Restart()
 
-    Main
+    main
 
     HTMLPrinter -HTMLEnd
 
-    $Script:TotalTime += $Script:Stopwatch.Elapsed
-    Write-Host "Audit has finished, total time elapsed:              " $Script:TotalTime
+    $Global:TotalTime += $Global:Stopwatch.Elapsed
+    Write-Host "Audit has finished, total time elapsed:              " $Global:TotalTime
 }
 
 function Main {
@@ -189,23 +253,23 @@ function Main {
     [CmdletBinding()]
     param()
 
-    if ($Script:Include -eq 'All' -or $Script:Include -eq 'CIS') {
+    if ($Global:Include -eq 'All' -or $Global:Include -eq 'CIS') {
         SecurityChecklists
 
-        Write-Host "CIS Microsoft SQL Server 2016 benchmark completed in:" $Script:Stopwatch.Elapsed
-        $Script:TotalTime += $Script:Stopwatch.Elapsed
-        Write-Host "Total time elapsed:                                  " $Script:TotalTime
-        $Script:Stopwatch.Restart()
+        Write-Host "CIS Microsoft SQL Server 2016 benchmark completed in:" $Global:Stopwatch.Elapsed
+        $Global:TotalTime += $Global:Stopwatch.Elapsed
+        Write-Host "Total time elapsed:                                  " $Global:TotalTime
+        $Global:Stopwatch.Restart()
     }
 
-    if ($Script:Include -eq 'All' -or $Script:Include -eq 'UserManagement') {
+    if ($Global:Include -eq 'All' -or $Global:Include -eq 'UserManagement') {
         # Used to obtain all users and their rights.
         UserManagement
 
-        Write-Host "User management completed in:                        " $Script:Stopwatch.Elapsed
-        $Script:TotalTime += $Script:Stopwatch.Elapsed
-        Write-Host "Total time elapsed:                                  " $Script:TotalTime
-        $Script:Stopwatch.Restart()
+        Write-Host "User management completed in:                        " $Global:Stopwatch.Elapsed
+        $Global:TotalTime += $Global:Stopwatch.Elapsed
+        Write-Host "Total time elapsed:                                  " $Global:TotalTime
+        $Global:Stopwatch.Restart()
     }
 }
 
@@ -215,7 +279,7 @@ function SqlConnectionBuilder {
     Builds and returns the SqlConnection object.
     
     .DESCRIPTION
-    Creates a ConnectionString based on the global script variables $Script:Server and $Script:Database.
+    Creates a ConnectionString based on the global script variables $Global:Server and $Global:Database.
     
     .EXAMPLE
     SqlConnectionBuilder
@@ -224,12 +288,12 @@ function SqlConnectionBuilder {
 
     # "Integrated Security = True" means that the connection uses windows authentication.
     # The supplied credentials will be the credentials of owner of the powershell session.
-    $Script:SqlConnection = New-Object System.Data.SqlClient.SqlConnection
+    $Global:SqlConnection = New-Object System.Data.SqlClient.SqlConnection
     if ($WindowsAuthentication) {
-        $Script:SqlConnection.ConnectionString = "Server = $Script:Server; Database = $Script:Database; Integrated Security = True;"
+        $Global:SqlConnection.ConnectionString = "Server = $Global:Server; Database = $Global:Database; Integrated Security = True;"
     }
     if ($SQLAuthentication) {
-        $Script:SqlConnection.ConnectionString = "Server = $Script:Server; Database = $Script:Database; User Id = $Script:Username; Password = $Script:Password;"
+        $Global:SqlConnection.ConnectionString = "Server = $Global:Server; Database = $Global:Database; User Id = $Global:Username; Password = $Global:Password;"
     }
 }
 
@@ -261,22 +325,21 @@ function DataCollector {
 
     $SQLCommand = New-Object System.Data.SqlClient.SqlCommand
     $SQLCommand.CommandText = $SqlQuery
-    $SQLCommand.Connection = $Script:SqlConnection
+    $SQLCommand.Connection = $Global:SqlConnection
     $SQLAdapter = New-Object System.Data.SqlClient.SqlDataAdapter
     $SQLAdapter.SelectCommand = $SQLCommand
     $Dataset = New-Object System.Data.DataSet
     $SqlAdapter.Fill($Dataset) | Out-Null
 
 
-    if($AllTables -eq "y")
-    {
-        ,$Dataset
+    if ($AllTables -eq "y") {
+        , $Dataset
     }
     else {
         $DataTable = New-Object System.Data.DataTable
         $DataTable = $Dataset.Tables[0]
 
-        ,$DataTable
+        , $DataTable
     }
 }
 
@@ -327,8 +390,8 @@ function GenerateDatabasesInfo {
                 FROM
                     sys.databases AS DB
                 ;"
-    $Script:DatabasesInfo = DataCollector $SqlQuery
-    $Script:DatabasesInfo.Columns.Add("number_of_users", "System.String") | Out-Null
+    $Global:DatabasesInfo = DataCollector $SqlQuery
+    $Global:DatabasesInfo.Columns.Add("number_of_users", "System.String") | Out-Null
 
     $SqlQuery = "SELECT
                     COUNT(*) AS users
@@ -345,807 +408,807 @@ function GenerateDatabasesInfo {
                         'X'
                     )
                 ;"
-    foreach ($db in $Script:DatabasesInfo) {
-        $Script:Database = $db.name
+    foreach ($db in $Global:DatabasesInfo) {
+        $Global:Database = $db.name
         SqlConnectionBuilder
         $Dataset = DataCollector $SqlQuery
         $db.number_of_users = $Dataset.users
     }
-    $Script:Database = $Script:OriginalDatabase
+    $Global:Database = $Global:OriginalDatabase
     SqlConnectionBuilder
 
     HTMLPrinter -OpeningTag "<h3 id='Databases' class='headers'>" -Content "Databases" -ClosingTag "</h3>"
-    HTMLPrinter -Table $Script:DatabasesInfo -Columns @("name", "create_date", "number_of_users")
+    HTMLPrinter -Table $Global:DatabasesInfo -Columns @("name", "create_date", "number_of_users")
 }
 
-function SecurityChecklists {
-    <#
-    .SYNOPSIS
-    Checks the MSSQL server against checklists available on the NIST NCP repository.
-    Currently these include:
-    * CIS Microsoft SQL Server 2012 (1.4.0)
-    * CIS Microsoft SQL Server 2016 (1.0.0)
-    * Microsoft SQL Server 2016 STIG (Ver 1, Rel 4)
+# function SecurityChecklists {
+#     <#
+#     .SYNOPSIS
+#     Checks the MSSQL server against checklists available on the NIST NCP repository.
+#     Currently these include:
+#     * CIS Microsoft SQL Server 2012 (1.4.0)
+#     * CIS Microsoft SQL Server 2016 (1.0.0)
+#     * Microsoft SQL Server 2016 STIG (Ver 1, Rel 4)
     
-    .DESCRIPTION
-    When checking the MSSQL server it will use the different parameters provided at the startup of the script to determine the checks to run.
-    The options to test are currently CIS and STIG. It will use the latest implemented version based on version data of the server.
-    Since not every check from the checklists can be performed on PowerShell this list is not complete.
-    Checks that aren't supported will be noted so they can be checked manually.
+#     .DESCRIPTION
+#     When checking the MSSQL server it will use the different parameters provided at the startup of the script to determine the checks to run.
+#     The options to test are currently CIS and STIG. It will use the latest implemented version based on version data of the server.
+#     Since not every check from the checklists can be performed on PowerShell this list is not complete.
+#     Checks that aren't supported will be noted so they can be checked manually.
 
-    The CIS benchmark recommendatons are assigned a scoring status:
-    Scored:     Failure to comply with "Scored" recommendations will decrease the final fenchmark score.
-                Compliance with "Scored" recommendations will increase the final benchmark score.
-    Not Scored: Failure to comply with "Not Scored" recommendations will not decrease the final benchmark score.
-                Compliance with "Not Scored" recommendations will not increase the final benchmark score.
+#     The CIS benchmark recommendatons are assigned a scoring status:
+#     Scored:     Failure to comply with "Scored" recommendations will decrease the final fenchmark score.
+#                 Compliance with "Scored" recommendations will increase the final benchmark score.
+#     Not Scored: Failure to comply with "Not Scored" recommendations will not decrease the final benchmark score.
+#                 Compliance with "Not Scored" recommendations will not increase the final benchmark score.
 
-    The STIG policies are assigned a Severity Category Code (CAT):
-    CAT I:   Any vulnerability, the exploitation of which will directly and immediately result in loss of Confidentiality, Availability, or Integrity.
-    CAT II:  Any vulnerability, the exploitation of which has a potential to result in loss of Confidentiality, Availability, or Integrity.
-    CAT III: Any vulnerability, the existence of which degrades measures to protect against loss of Confidentiality, Availability, or Integrity.
+#     The STIG policies are assigned a Severity Category Code (CAT):
+#     CAT I:   Any vulnerability, the exploitation of which will directly and immediately result in loss of Confidentiality, Availability, or Integrity.
+#     CAT II:  Any vulnerability, the exploitation of which has a potential to result in loss of Confidentiality, Availability, or Integrity.
+#     CAT III: Any vulnerability, the existence of which degrades measures to protect against loss of Confidentiality, Availability, or Integrity.
 
-    This method can check any combination of CIS benchmark and STIG CAT checks.
+#     This method can check any combination of CIS benchmark and STIG CAT checks.
 
-    .EXAMPLE
-    SecurityChecklists
+#     .EXAMPLE
+#     SecurityChecklists
     
-    .NOTES
-    The SecurityChecklists function does not check every MSSQL checklist found in the NIST NCP repository.
-    It will only check MSSQL versions that are currently supported by Microsoft.
+#     .NOTES
+#     The SecurityChecklists function does not check every MSSQL checklist found in the NIST NCP repository.
+#     It will only check MSSQL versions that are currently supported by Microsoft.
 
-    The following checks can be performed by this function:
+#     The following checks can be performed by this function:
 
-    CIS Microsoft SQL Server 2012 benchmark:
-    * Section 1.1  (Not Scored)
-    * Section 1.2  (Not Scored) (Manual)
-    * Section 2.1  (Scored)
-    * Section 2.2  (Scored)
-    * Section 2.3  (Scored)
-    * Section 2.4  (Scored)
-    * Section 2.5  (Scored)
-    * Section 2.6  (Scored)
-    * Section 2.7  (Scored)
-    * Section 2.8  (Scored)
-    * Section 2.9  (Scored)
-    * Section 2.10 (Not Scored) (Manual)
-    * Section 2.11 (Scored)
-    * Section 2.12 (Scored)
-    * Section 2.13 (Scored)
-    * Section 2.14 (Scored)
-    * Section 2.15 (Scored)
-    * Section 2.16 (Scored)
-    * Section 2.17 (Scored)
-    * Section 3.1  (Scored)
-    * Section 3.2  (Scored)
-    * Section 3.3  (Scored)
-    * Section 3.4  (Scored)
-    * Section 3.5  (Scored)     (Manual)
-    * Section 3.6  (Scored)     (Manual)
-    * Section 3.7  (Scored)     (Manual)
-    * Section 3.8  (Scored)
-    * Section 3.9  (Scored)
-    * Section 3.10 (Scored)
-    * Section 3.11 (Scored)
-    * Section 4.1  (Not Scored) (Manual)
-    * Section 4.2  (Scored)
-    * Section 4.3  (Scored)
-    * Section 5.1  (Scored)
-    * Section 5.2  (Scored)
-    * Section 5.3  (Scored)
-    * Section 5.4  (Scored)
-    * Section 6.1  (Not Scored) (Manual)
-    * Section 6.2  (Scored)
-    * Section 7.1  (Scored)
-    * Section 7.2  (Scored)
-    * Section 8.1  (Not Scored) (Manual)
+#     CIS Microsoft SQL Server 2012 benchmark:
+#     * Section 1.1  (Not Scored)
+#     * Section 1.2  (Not Scored) (Manual)
+#     * Section 2.1  (Scored)
+#     * Section 2.2  (Scored)
+#     * Section 2.3  (Scored)
+#     * Section 2.4  (Scored)
+#     * Section 2.5  (Scored)
+#     * Section 2.6  (Scored)
+#     * Section 2.7  (Scored)
+#     * Section 2.8  (Scored)
+#     * Section 2.9  (Scored)
+#     * Section 2.10 (Not Scored) (Manual)
+#     * Section 2.11 (Scored)
+#     * Section 2.12 (Scored)
+#     * Section 2.13 (Scored)
+#     * Section 2.14 (Scored)
+#     * Section 2.15 (Scored)
+#     * Section 2.16 (Scored)
+#     * Section 2.17 (Scored)
+#     * Section 3.1  (Scored)
+#     * Section 3.2  (Scored)
+#     * Section 3.3  (Scored)
+#     * Section 3.4  (Scored)
+#     * Section 3.5  (Scored)     (Manual)
+#     * Section 3.6  (Scored)     (Manual)
+#     * Section 3.7  (Scored)     (Manual)
+#     * Section 3.8  (Scored)
+#     * Section 3.9  (Scored)
+#     * Section 3.10 (Scored)
+#     * Section 3.11 (Scored)
+#     * Section 4.1  (Not Scored) (Manual)
+#     * Section 4.2  (Scored)
+#     * Section 4.3  (Scored)
+#     * Section 5.1  (Scored)
+#     * Section 5.2  (Scored)
+#     * Section 5.3  (Scored)
+#     * Section 5.4  (Scored)
+#     * Section 6.1  (Not Scored) (Manual)
+#     * Section 6.2  (Scored)
+#     * Section 7.1  (Scored)
+#     * Section 7.2  (Scored)
+#     * Section 8.1  (Not Scored) (Manual)
 
-    CIS Microsoft SQL Server 2016 benchmark:
-    * Section 1.1  (Not Scored)
-    * Section 1.2  (Not Scored) (Manual)
-    * Section 2.1  (Scored)
-    * Section 2.2  (Scored)
-    * Section 2.3  (Scored)
-    * Section 2.4  (Scored)
-    * Section 2.5  (Scored)
-    * Section 2.6  (Scored)
-    * Section 2.7  (Scored)
-    * Section 2.8  (Scored)
-    * Section 2.9  (Scored)
-    * Section 2.10 (Not Scored) (Manual)
-    * Section 2.11 (Scored)
-    * Section 2.12 (Scored)
-    * Section 2.13 (Scored)
-    * Section 2.14 (Scored)
-    * Section 2.15 (Scored)
-    * Section 2.16 (Scored)
-    * Section 2.17 (Scored)
-    * Section 3.1  (Scored)
-    * Section 3.2  (Scored)
-    * Section 3.3  (Scored)
-    * Section 3.4  (Scored)
-    * Section 3.5  (Scored)     (Manual)
-    * Section 3.6  (Scored)     (Manual)
-    * Section 3.7  (Scored)     (Manual)
-    * Section 3.8  (Scored)
-    * Section 3.9  (Scored)
-    * Section 3.10 (Scored)
-    * Section 3.11 (Scored)
-    * Section 4.1  (Not Scored) (Manual)
-    * Section 4.2  (Scored)
-    * Section 4.3  (Scored)
-    * Section 5.1  (Scored)
-    * Section 5.2  (Scored)
-    * Section 5.3  (Scored)
-    * Section 5.4  (Scored)
-    * Section 6.1  (Not Scored) (Manual)
-    * Section 6.2  (Scored)
-    * Section 7.1  (Scored)
-    * Section 7.2  (Scored)
-    * Section 8.1  (Not Scored) (Manual)
-    #>
+#     CIS Microsoft SQL Server 2016 benchmark:
+#     * Section 1.1  (Not Scored)
+#     * Section 1.2  (Not Scored) (Manual)
+#     * Section 2.1  (Scored)
+#     * Section 2.2  (Scored)
+#     * Section 2.3  (Scored)
+#     * Section 2.4  (Scored)
+#     * Section 2.5  (Scored)
+#     * Section 2.6  (Scored)
+#     * Section 2.7  (Scored)
+#     * Section 2.8  (Scored)
+#     * Section 2.9  (Scored)
+#     * Section 2.10 (Not Scored) (Manual)
+#     * Section 2.11 (Scored)
+#     * Section 2.12 (Scored)
+#     * Section 2.13 (Scored)
+#     * Section 2.14 (Scored)
+#     * Section 2.15 (Scored)
+#     * Section 2.16 (Scored)
+#     * Section 2.17 (Scored)
+#     * Section 3.1  (Scored)
+#     * Section 3.2  (Scored)
+#     * Section 3.3  (Scored)
+#     * Section 3.4  (Scored)
+#     * Section 3.5  (Scored)     (Manual)
+#     * Section 3.6  (Scored)     (Manual)
+#     * Section 3.7  (Scored)     (Manual)
+#     * Section 3.8  (Scored)
+#     * Section 3.9  (Scored)
+#     * Section 3.10 (Scored)
+#     * Section 3.11 (Scored)
+#     * Section 4.1  (Not Scored) (Manual)
+#     * Section 4.2  (Scored)
+#     * Section 4.3  (Scored)
+#     * Section 5.1  (Scored)
+#     * Section 5.2  (Scored)
+#     * Section 5.3  (Scored)
+#     * Section 5.4  (Scored)
+#     * Section 6.1  (Not Scored) (Manual)
+#     * Section 6.2  (Scored)
+#     * Section 7.1  (Scored)
+#     * Section 7.2  (Scored)
+#     * Section 8.1  (Not Scored) (Manual)
+#     #>
 
-    HTMLPrinter -OpeningTag "<h1 id='CIS_benchmark' class='headers'>" -Content "CIS benchmark" -ClosingTag "</h1>"
+#     HTMLPrinter -OpeningTag "<h1 id='CIS_benchmark' class='headers'>" -Content "CIS benchmark" -ClosingTag "</h1>"
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 1.1.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 1.1.
-    # Checks the productlevel and productversion.
-    $SqlQuery = "SELECT
-                    SERVERPROPERTY('ProductLevel') as SP_installed,
-                    SERVERPROPERTY('ProductVersion') as version
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "The server contains the following Service Pack and Version." -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if these match the expected versions." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("SP_installed", "version")
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 1.1.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 1.1.
+#     # Checks the productlevel and productversion.
+#     $SqlQuery = "SELECT
+#                     SERVERPROPERTY('ProductLevel') as SP_installed,
+#                     SERVERPROPERTY('ProductVersion') as version
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "The server contains the following Service Pack and Version." -ClosingTag "</p>"
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if these match the expected versions." -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("SP_installed", "version")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.1.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.1.
-    # Checks if the option 'Ad Hoc Distributed Queries' is disabled.
-    $SqlQuery = "SELECT name                      AS name,
-                        CAST(value AS int)        AS value_configured,
-                        CAST(value_in_use AS int) AS value_in_use
-                FROM
-                    sys.configurations AS C
-                WHERE
-                    C.name = 'Ad Hoc Distributed Queries'
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if 'Add Hoc Distributed Queries' is disabled (0)." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.1.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.1.
+#     # Checks if the option 'Ad Hoc Distributed Queries' is disabled.
+#     $SqlQuery = "SELECT name                      AS name,
+#                         CAST(value AS int)        AS value_configured,
+#                         CAST(value_in_use AS int) AS value_in_use
+#                 FROM
+#                     sys.configurations AS C
+#                 WHERE
+#                     C.name = 'Ad Hoc Distributed Queries'
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'Add Hoc Distributed Queries' is disabled (0)." -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.2.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.2.
-    # Checks if the option 'clr enabled' is disabled.
-    $SqlQuery = "SELECT name                      AS name,
-                        CAST(value AS int)        AS value_configured,
-                        CAST(value_in_use AS int) AS value_in_use
-                FROM
-                    sys.configurations AS C
-                WHERE
-                    C.name = 'clr enabled'
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if 'clr enabled' is disabled (0)." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.2.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.2.
+#     # Checks if the option 'clr enabled' is disabled.
+#     $SqlQuery = "SELECT name                      AS name,
+#                         CAST(value AS int)        AS value_configured,
+#                         CAST(value_in_use AS int) AS value_in_use
+#                 FROM
+#                     sys.configurations AS C
+#                 WHERE
+#                     C.name = 'clr enabled'
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'clr enabled' is disabled (0)." -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.3.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.3.
-    # Checks if the option 'cross db ownership chaining' is disabled.
-    $SqlQuery = "SELECT name                      AS name,
-                        CAST(value AS int)        AS value_configured,
-                        CAST(value_in_use AS int) AS value_in_use
-                FROM
-                    sys.configurations AS C
-                WHERE
-                    C.name = 'cross db ownership chaining'
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if 'cross db ownership chaining' is disabled (0)." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.3.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.3.
+#     # Checks if the option 'cross db ownership chaining' is disabled.
+#     $SqlQuery = "SELECT name                      AS name,
+#                         CAST(value AS int)        AS value_configured,
+#                         CAST(value_in_use AS int) AS value_in_use
+#                 FROM
+#                     sys.configurations AS C
+#                 WHERE
+#                     C.name = 'cross db ownership chaining'
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'cross db ownership chaining' is disabled (0)." -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.4.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.4.
-    # Checks if the option 'Database Mail XPs' is disabled.
-    $SqlQuery = "SELECT name                      AS name,
-                        CAST(value AS int)        AS value_configured,
-                        CAST(value_in_use AS int) AS value_in_use
-                FROM
-                    sys.configurations AS C
-                WHERE
-                    C.name = 'Database Mail XPs'
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if 'Database Mail XPs' is disabled (0)." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.4.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.4.
+#     # Checks if the option 'Database Mail XPs' is disabled.
+#     $SqlQuery = "SELECT name                      AS name,
+#                         CAST(value AS int)        AS value_configured,
+#                         CAST(value_in_use AS int) AS value_in_use
+#                 FROM
+#                     sys.configurations AS C
+#                 WHERE
+#                     C.name = 'Database Mail XPs'
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'Database Mail XPs' is disabled (0)." -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.5.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.5.
-    # Checks if the option 'Ole Automation Procedures' is disabled.
-    $SqlQuery = "SELECT name                      AS name,
-                        CAST(value AS int)        AS value_configured,
-                        CAST(value_in_use AS int) AS value_in_use
-                FROM
-                    sys.configurations AS C
-                WHERE
-                    C.name = 'Ole Automation Procedures'
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if 'Ole Automation Procedures' is disabled (0)." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.5.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.5.
+#     # Checks if the option 'Ole Automation Procedures' is disabled.
+#     $SqlQuery = "SELECT name                      AS name,
+#                         CAST(value AS int)        AS value_configured,
+#                         CAST(value_in_use AS int) AS value_in_use
+#                 FROM
+#                     sys.configurations AS C
+#                 WHERE
+#                     C.name = 'Ole Automation Procedures'
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'Ole Automation Procedures' is disabled (0)." -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.6.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.6.
-    # Checks if the option 'remote access' is disabled.
-    $SqlQuery = "SELECT name                      AS name,
-                        CAST(value AS int)        AS value_configured,
-                        CAST(value_in_use AS int) AS value_in_use
-                FROM
-                    sys.configurations AS C
-                WHERE
-                    C.name = 'remote access'
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if 'remote access' is disabled (0)." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.6.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.6.
+#     # Checks if the option 'remote access' is disabled.
+#     $SqlQuery = "SELECT name                      AS name,
+#                         CAST(value AS int)        AS value_configured,
+#                         CAST(value_in_use AS int) AS value_in_use
+#                 FROM
+#                     sys.configurations AS C
+#                 WHERE
+#                     C.name = 'remote access'
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'remote access' is disabled (0)." -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.7.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.7.
-    # Checks if the option 'remote admin connections' is disabled if the server is not in a cluster.
-    $SqlQuery = "SELECT name                      AS name,
-                        CAST(value AS int)        AS value_configured,
-                        CAST(value_in_use AS int) AS value_in_use
-                FROM
-                    sys.configurations AS C
-                WHERE
-                      C.name                        = 'remote admin connections'
-                  AND SERVERPROPERTY('IsClustered') = 0
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    if ($Dataset.Rows.Count -gt 0) {
-        HTMLPrinter -OpeningTag "<p>" -Content "Check if 'remote admin connections' is disabled (0)." -ClosingTag "</p>"
-        HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
-    }
-    else {
-        HTMLPrinter -OpeningTag "<p>" -Content "This server is in a cluster. Therefore the check for 'remote admin connections' does not apply." -ClosingTag "</p>"
-    }
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.7.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.7.
+#     # Checks if the option 'remote admin connections' is disabled if the server is not in a cluster.
+#     $SqlQuery = "SELECT name                      AS name,
+#                         CAST(value AS int)        AS value_configured,
+#                         CAST(value_in_use AS int) AS value_in_use
+#                 FROM
+#                     sys.configurations AS C
+#                 WHERE
+#                       C.name                        = 'remote admin connections'
+#                   AND SERVERPROPERTY('IsClustered') = 0
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     if ($Dataset.Rows.Count -gt 0) {
+#         HTMLPrinter -OpeningTag "<p>" -Content "Check if 'remote admin connections' is disabled (0)." -ClosingTag "</p>"
+#         HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
+#     }
+#     else {
+#         HTMLPrinter -OpeningTag "<p>" -Content "This server is in a cluster. Therefore the check for 'remote admin connections' does not apply." -ClosingTag "</p>"
+#     }
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.8.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.8.
-    # Checks if the option 'scan for startup procs' is disabled.
-    $SqlQuery = "SELECT name                      AS name,
-                        CAST(value AS int)        AS value_configured,
-                        CAST(value_in_use AS int) AS value_in_use
-                FROM
-                    sys.configurations AS C
-                WHERE
-                    C.name = 'scan for startup procs'
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if 'scan for startup procs' is disabled (0)" -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "Note that this option might be enabled to use certain audit traces, stored procedures and replication." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.8.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.8.
+#     # Checks if the option 'scan for startup procs' is disabled.
+#     $SqlQuery = "SELECT name                      AS name,
+#                         CAST(value AS int)        AS value_configured,
+#                         CAST(value_in_use AS int) AS value_in_use
+#                 FROM
+#                     sys.configurations AS C
+#                 WHERE
+#                     C.name = 'scan for startup procs'
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'scan for startup procs' is disabled (0)" -ClosingTag "</p>"
+#     HTMLPrinter -OpeningTag "<p>" -Content "Note that this option might be enabled to use certain audit traces, stored procedures and replication." -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.9.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.9.
-    # Checks if the option 'is_trustworthy_on' is disabled.
-    HTMLPrinter -OpeningTag "<p>" -Content "Check for the following databases if they have the (is_trustworthy_on set to False)." -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "The 'msdb' database is required to have 'is_trustworthy_on set to True.`n" -ClosingTag "</p>"
-    HTMLPrinter -Table $Script:DatabasesInfo -Columns @("name", "is_trustworthy_on")
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.9.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.9.
+#     # Checks if the option 'is_trustworthy_on' is disabled.
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check for the following databases if they have the (is_trustworthy_on set to False)." -ClosingTag "</p>"
+#     HTMLPrinter -OpeningTag "<p>" -Content "The 'msdb' database is required to have 'is_trustworthy_on set to True.`n" -ClosingTag "</p>"
+#     HTMLPrinter -Table $Global:DatabasesInfo -Columns @("name", "is_trustworthy_on")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.11.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.11.
-    # Checks if the MSSQL Server does not use the default port 1433.
-    $SqlQuery = "DECLARE
-                    @value nvarchar (256)
-                ;
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.11.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.11.
+#     # Checks if the MSSQL Server does not use the default port 1433.
+#     $SqlQuery = "DECLARE
+#                     @value nvarchar (256)
+#                 ;
 
-                EXECUTE
-                    master.dbo.xp_instance_regread
-                        N'HKEY_LOCAL_MACHINE',
-                        N'SOFTWARE\Microsoft\Microsoft SQL Server\MSSQLServer\SuperSocketNetLib\Tcp\IPALL',
-                        N'TcpPort',
-                        @value OUTPUT,
-                        N'no_output'
-                ;
+#                 EXECUTE
+#                     master.dbo.xp_instance_regread
+#                         N'HKEY_LOCAL_MACHINE',
+#                         N'SOFTWARE\Microsoft\Microsoft SQL Server\MSSQLServer\SuperSocketNetLib\Tcp\IPALL',
+#                         N'TcpPort',
+#                         @value OUTPUT,
+#                         N'no_output'
+#                 ;
                     
-                SELECT
-                    @value AS TCP_port
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "Check that the server does not use the default TCP_Port 1433." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("TCP_port")
+#                 SELECT
+#                     @value AS TCP_port
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check that the server does not use the default TCP_Port 1433." -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("TCP_port")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.12.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.12.
-    # Checks if the server is hidden. If the server is in a cluster it might be necessary to have this turned off.
-    $SqlQuery = "DECLARE
-                    @getValue INT
-                ;
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.12.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.12.
+#     # Checks if the server is hidden. If the server is in a cluster it might be necessary to have this turned off.
+#     $SqlQuery = "DECLARE
+#                     @getValue INT
+#                 ;
 
-                EXEC
-                    master..xp_instance_regread
-                        @rootkey = N'HKEY_LOCAL_MACHINE',
-                        @key = N'SOFTWARE\Microsoft\Microsoft SQL Server\MSSQLServer\SuperSocketNetLib',
-                        @value_name = N'HideInstance',
-                        @value = @getValue OUTPUT
-                ;
+#                 EXEC
+#                     master..xp_instance_regread
+#                         @rootkey = N'HKEY_LOCAL_MACHINE',
+#                         @key = N'SOFTWARE\Microsoft\Microsoft SQL Server\MSSQLServer\SuperSocketNetLib',
+#                         @value_name = N'HideInstance',
+#                         @value = @getValue OUTPUT
+#                 ;
 
-                SELECT
-                    @getValue                     AS is_hidden,
-                    SERVERPROPERTY('IsClustered') AS is_in_cluster
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if the server is hidden (1)." -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "If the server is in a cluster it might be necessary to have this turned off." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("is_hidden", "is_in_cluster")
+#                 SELECT
+#                     @getValue                     AS is_hidden,
+#                     SERVERPROPERTY('IsClustered') AS is_in_cluster
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if the server is hidden (1)." -ClosingTag "</p>"
+#     HTMLPrinter -OpeningTag "<p>" -Content "If the server is in a cluster it might be necessary to have this turned off." -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("is_hidden", "is_in_cluster")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.13.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.13.
-    # Checks if the default 'sa' account is disabled.
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.14.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.14.
-    # Checks if the default 'sa' account has been renamed.
-    $SqlQuery = "SELECT
-                    SP.sid         AS SID,
-                    SP.name        AS name,
-                    SP.is_disabled AS is_disabled
-                FROM
-                    sys.server_principals AS SP
-                WHERE
-                    SP.SID = 0x01
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if the default 'sa' account is disabled (True)" -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if the default 'sa' account has been renamed." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("SID", "name", "is_disabled")
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.13.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.13.
+#     # Checks if the default 'sa' account is disabled.
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.14.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.14.
+#     # Checks if the default 'sa' account has been renamed.
+#     $SqlQuery = "SELECT
+#                     SP.sid         AS SID,
+#                     SP.name        AS name,
+#                     SP.is_disabled AS is_disabled
+#                 FROM
+#                     sys.server_principals AS SP
+#                 WHERE
+#                     SP.SID = 0x01
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if the default 'sa' account is disabled (True)" -ClosingTag "</p>"
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if the default 'sa' account has been renamed." -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("SID", "name", "is_disabled")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.15.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.15.
-    # Checks if the option 'xp_cmdshell' is disabled.
-    $SqlQuery = "SELECT name                      AS name,
-                        CAST(value AS int)        AS value_configured,
-                        CAST(value_in_use AS int) AS value_in_use
-                FROM
-                    sys.configurations AS C
-                WHERE
-                    C.name = 'xp_cmdshell'
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if 'xp_cmdshell' is disabled (0)." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.15.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.15.
+#     # Checks if the option 'xp_cmdshell' is disabled.
+#     $SqlQuery = "SELECT name                      AS name,
+#                         CAST(value AS int)        AS value_configured,
+#                         CAST(value_in_use AS int) AS value_in_use
+#                 FROM
+#                     sys.configurations AS C
+#                 WHERE
+#                     C.name = 'xp_cmdshell'
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'xp_cmdshell' is disabled (0)." -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.16.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.16.
-    # Checks if the is_auto_close_on option is turned off for contained databases.
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if the 'is_auto_close_on' option is set to 'False' for the databases with 'containment' not set to '0'." -ClosingTag "</p>"
-    HTMLPrinter -Table $Script:DatabasesInfo -Columns @("name", "containment", "containment_desc", "is_auto_close_on")
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.16.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.16.
+#     # Checks if the is_auto_close_on option is turned off for contained databases.
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if the 'is_auto_close_on' option is set to 'False' for the databases with 'containment' not set to '0'." -ClosingTag "</p>"
+#     HTMLPrinter -Table $Global:DatabasesInfo -Columns @("name", "containment", "containment_desc", "is_auto_close_on")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.17.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.17.
-    # Checks if no login exists with the name 'sa'.
-    $SqlQuery = "SELECT
-                    SP.principal_id AS principal_ID,
-                    SP.name         AS name,
-                    SP.is_disabled  AS is_disabled
-                FROM
-                    sys.server_principals AS SP
-                WHERE
-                      SP.type = 'S'
-                   OR SP.type = 'U'
-                   OR SP.type = 'G'
-                ORDER BY
-                    SP.principal_ID
-                    ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if no login exists with the name 'sa', even if this is not the original 'sa' account." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("principal_ID", "name", "is_disabled")
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.17.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.17.
+#     # Checks if no login exists with the name 'sa'.
+#     $SqlQuery = "SELECT
+#                     SP.principal_id AS principal_ID,
+#                     SP.name         AS name,
+#                     SP.is_disabled  AS is_disabled
+#                 FROM
+#                     sys.server_principals AS SP
+#                 WHERE
+#                       SP.type = 'S'
+#                    OR SP.type = 'U'
+#                    OR SP.type = 'G'
+#                 ORDER BY
+#                     SP.principal_ID
+#                     ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if no login exists with the name 'sa', even if this is not the original 'sa' account." -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("principal_ID", "name", "is_disabled")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 3.1.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.1.
-    # Checks if the 'Server Authentication' property is set to 'Windows Authentication Mode'.
-    $SqlQuery = "SELECT
-                    SERVERPROPERTY('IsIntegratedSecurityOnly') AS [login_mode]
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if 'login_mode' is set to 'Windows Authentication Mode' only (1)." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("login_mode")
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 3.1.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.1.
+#     # Checks if the 'Server Authentication' property is set to 'Windows Authentication Mode'.
+#     $SqlQuery = "SELECT
+#                     SERVERPROPERTY('IsIntegratedSecurityOnly') AS [login_mode]
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'login_mode' is set to 'Windows Authentication Mode' only (1)." -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("login_mode")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 3.2.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.2.
-    # Checks if the guest user has it's rights revoked on the databases, with the exception of the msdb
-    $SqlQuery = "SELECT
-                    DB_NAME()            AS database_name,
-                    'guest'              AS DB_user,
-                    DP.[permission_name] AS permission_name,
-                    DP.[state_desc]      AS state_desc
-                FROM
-                    sys.database_permissions AS DP
-                WHERE
-                    DP.[grantee_principal_id] = DATABASE_PRINCIPAL_ID('guest')
-                ;"
-    HTMLPrinter -OpeningTag "<p>" -Content "Check for each of the following databases if the 'CONNECT' permission has been revoked for the 'guest' user." -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "The connect permission is required for the 'master', 'tempdb', 'msdb' databases. Therefore they can be ignored." -ClosingTag "</p>"
-    if ($Script:AllDatabases) {
-        foreach ($db in $Script:DatabasesInfo) {
-            $Script:Database = $db.name
-            SqlConnectionBuilder
-            $Dataset = DataCollector $SqlQuery
-            HTMLPrinter -Table $Dataset -Columns @("database_name", "DB_user", "permission_name", "state_desc")
-        }
-        $Script:Database = $Script:OriginalDatabase
-        SqlConnectionBuilder
-    }
-    else {
-        $Dataset = DataCollector $SqlQuery
-        HTMLPrinter -Table $Dataset -Columns @("database_name", "DB_user", "permission_name", "state_desc")
-    }
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 3.2.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.2.
+#     # Checks if the guest user has it's rights revoked on the databases, with the exception of the msdb
+#     $SqlQuery = "SELECT
+#                     DB_NAME()            AS database_name,
+#                     'guest'              AS DB_user,
+#                     DP.[permission_name] AS permission_name,
+#                     DP.[state_desc]      AS state_desc
+#                 FROM
+#                     sys.database_permissions AS DP
+#                 WHERE
+#                     DP.[grantee_principal_id] = DATABASE_PRINCIPAL_ID('guest')
+#                 ;"
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check for each of the following databases if the 'CONNECT' permission has been revoked for the 'guest' user." -ClosingTag "</p>"
+#     HTMLPrinter -OpeningTag "<p>" -Content "The connect permission is required for the 'master', 'tempdb', 'msdb' databases. Therefore they can be ignored." -ClosingTag "</p>"
+#     if ($Global:AllDatabases) {
+#         foreach ($db in $Global:DatabasesInfo) {
+#             $Global:Database = $db.name
+#             SqlConnectionBuilder
+#             $Dataset = DataCollector $SqlQuery
+#             HTMLPrinter -Table $Dataset -Columns @("database_name", "DB_user", "permission_name", "state_desc")
+#         }
+#         $Global:Database = $Global:OriginalDatabase
+#         SqlConnectionBuilder
+#     }
+#     else {
+#         $Dataset = DataCollector $SqlQuery
+#         HTMLPrinter -Table $Dataset -Columns @("database_name", "DB_user", "permission_name", "state_desc")
+#     }
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 3.3
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.3
-    # Checks if 'Orphaned Users' are dropped from SQL Server Databases.
-    $SqlQuery = "EXEC
-                    sp_change_users_login
-                        @Action = 'Report'
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    if ($Dataset.Rows.Count -gt 0) {
-        HTMLPrinter -OpeningTag "<p>" -Content "The following accounts are 'orphaned'." -ClosingTag "</p>"
-        HTMLPrinter -OpeningTag "<p>" -Content "These accounts should probably be removed.`n" -ClosingTag "</p>"
-        HTMLPrinter -Table $Dataset -Columns @("UserName", "UserSID")
-    }
-    else {
-        HTMLPrinter -OpeningTag "<p>" -Content "There are no accounts that are 'orphaned'.`n" -ClosingTag "</p>"
-    }
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 3.3
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.3
+#     # Checks if 'Orphaned Users' are dropped from SQL Server Databases.
+#     $SqlQuery = "EXEC
+#                     sp_change_users_login
+#                         @Action = 'Report'
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     if ($Dataset.Rows.Count -gt 0) {
+#         HTMLPrinter -OpeningTag "<p>" -Content "The following accounts are 'orphaned'." -ClosingTag "</p>"
+#         HTMLPrinter -OpeningTag "<p>" -Content "These accounts should probably be removed.`n" -ClosingTag "</p>"
+#         HTMLPrinter -Table $Dataset -Columns @("UserName", "UserSID")
+#     }
+#     else {
+#         HTMLPrinter -OpeningTag "<p>" -Content "There are no accounts that are 'orphaned'.`n" -ClosingTag "</p>"
+#     }
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 3.4.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.4.
-    # Checks if SQL authentication is not used in contained databases.
-    $SqlQuery = "SELECT 
-                    DB_NAME()             AS database_name,
-                    P.name                AS DB_user,
-                    P.authentication_type AS authentication_type
-                FROM
-                    sys.database_principals AS P
-                WHERE
-                    P.type IN (
-                                'U',
-                                'S',
-                                'G'
-                    )
-                ORDER BY
-                    authentication_type,
-                    DB_user
-                ;"
-    if ($Script:AllDatabases -and $Script:DatabasesInfo.containment -contains 1) {
-        foreach ($db in $Script:DatabasesInfo) {
-            if($db.containment -eq 1){
-                $Script:Database = $db.name
-                SqlConnectionBuilder
-                $Dataset = DataCollector $SqlQuery
-                HTMLPrinter -OpeningTag "<p>" -Content "Check if SQL authentication (authentication_type 2) is not used in this contained database." -ClosingTag "</p>"
-                HTMLPrinter -Table $Dataset -Columns @("database_name", "DB_user", "authentication_type")
-            }
-        }
-        $Script:Database = $Script:OriginalDatabase
-        SqlConnectionBuilder
-    }
-    elseif ($Script:AllDatabases) {
-        HTMLPrinter -OpeningTag "<p>" -Content "There are no contained databases." -ClosingTag "</p>"
-    } 
-    else {
-        $contained = $Script:DatabasesInfo | Where-Object name -eq $Database
-        if($contained.containment -eq 1){
-            $Dataset = DataCollector $SqlQuery
-            HTMLPrinter -OpeningTag "<p>" -Content "Check if SQL authentication (authentication_type 2) is not used in this contained database." -ClosingTag "</p>"
-            HTMLPrinter -Table $Dataset -Columns @("database_name", "DB_user", "authentication_type")
-        }
-        else {
-            HTMLPrinter -OpeningTag "<p>" -Content "This database is not a contained database." -ClosingTag "</p>"
-        }
-    }
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 3.4.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.4.
+#     # Checks if SQL authentication is not used in contained databases.
+#     $SqlQuery = "SELECT 
+#                     DB_NAME()             AS database_name,
+#                     P.name                AS DB_user,
+#                     P.authentication_type AS authentication_type
+#                 FROM
+#                     sys.database_principals AS P
+#                 WHERE
+#                     P.type IN (
+#                                 'U',
+#                                 'S',
+#                                 'G'
+#                     )
+#                 ORDER BY
+#                     authentication_type,
+#                     DB_user
+#                 ;"
+#     if ($Global:AllDatabases -and $Global:DatabasesInfo.containment -contains 1) {
+#         foreach ($db in $Global:DatabasesInfo) {
+#             if ($db.containment -eq 1) {
+#                 $Global:Database = $db.name
+#                 SqlConnectionBuilder
+#                 $Dataset = DataCollector $SqlQuery
+#                 HTMLPrinter -OpeningTag "<p>" -Content "Check if SQL authentication (authentication_type 2) is not used in this contained database." -ClosingTag "</p>"
+#                 HTMLPrinter -Table $Dataset -Columns @("database_name", "DB_user", "authentication_type")
+#             }
+#         }
+#         $Global:Database = $Global:OriginalDatabase
+#         SqlConnectionBuilder
+#     }
+#     elseif ($Global:AllDatabases) {
+#         HTMLPrinter -OpeningTag "<p>" -Content "There are no contained databases." -ClosingTag "</p>"
+#     } 
+#     else {
+#         $contained = $Global:DatabasesInfo | Where-Object name -eq $Database
+#         if ($contained.containment -eq 1) {
+#             $Dataset = DataCollector $SqlQuery
+#             HTMLPrinter -OpeningTag "<p>" -Content "Check if SQL authentication (authentication_type 2) is not used in this contained database." -ClosingTag "</p>"
+#             HTMLPrinter -Table $Dataset -Columns @("database_name", "DB_user", "authentication_type")
+#         }
+#         else {
+#             HTMLPrinter -OpeningTag "<p>" -Content "This database is not a contained database." -ClosingTag "</p>"
+#         }
+#     }
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 3.8.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.8.
-    # Checks if only the default permissions specified by Microsoft are granted to the public server role.
-    $SqlQuery = "SELECT
-                    *
-                FROM
-                    master.sys.server_permissions AS SP
-                WHERE
-                    SP.grantee_principal_id = SUSER_SID(N'public')
-                ORDER BY
-                    SP.class,
-                    SP.permission_name,
-                    SP.state,
-                    SP.major_id
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "The 'public' server role has the following permissions." -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "These extra permissions apply to every login on the server. Therefore it should only have the default permissions." -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "These are:" -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "state_desc = 'GRANT' and [permission_name] = 'VIEW ANY DATABASE' and class_desc = 'SERVER')" -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "state_desc = 'GRANT' and [permission_name] = 'CONNECT' and class_desc = 'ENDPOINT' and major_id = 2)" -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "state_desc = 'GRANT' and [permission_name] = 'CONNECT' and class_desc = 'ENDPOINT' and major_id = 3)" -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "state_desc = 'GRANT' and [permission_name] = 'CONNECT' and class_desc = 'ENDPOINT' and major_id = 4)" -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "state_desc = 'GRANT' and [permission_name] = 'CONNECT' and class_desc = 'ENDPOINT' and major_id = 5)" -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("class", "class_desc", "major_id", "minor_id", "grantee_principal_id", "grantor_principal_id", "type", "permission_name", "state", "state_desc")
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 3.8.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.8.
+#     # Checks if only the default permissions specified by Microsoft are granted to the public server role.
+#     $SqlQuery = "SELECT
+#                     *
+#                 FROM
+#                     master.sys.server_permissions AS SP
+#                 WHERE
+#                     SP.grantee_principal_id = SUSER_SID(N'public')
+#                 ORDER BY
+#                     SP.class,
+#                     SP.permission_name,
+#                     SP.state,
+#                     SP.major_id
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "The 'public' server role has the following permissions." -ClosingTag "</p>"
+#     HTMLPrinter -OpeningTag "<p>" -Content "These extra permissions apply to every login on the server. Therefore it should only have the default permissions." -ClosingTag "</p>"
+#     HTMLPrinter -OpeningTag "<p>" -Content "These are:" -ClosingTag "</p>"
+#     HTMLPrinter -OpeningTag "<p>" -Content "state_desc = 'GRANT' and [permission_name] = 'VIEW ANY DATABASE' and class_desc = 'SERVER')" -ClosingTag "</p>"
+#     HTMLPrinter -OpeningTag "<p>" -Content "state_desc = 'GRANT' and [permission_name] = 'CONNECT' and class_desc = 'ENDPOINT' and major_id = 2)" -ClosingTag "</p>"
+#     HTMLPrinter -OpeningTag "<p>" -Content "state_desc = 'GRANT' and [permission_name] = 'CONNECT' and class_desc = 'ENDPOINT' and major_id = 3)" -ClosingTag "</p>"
+#     HTMLPrinter -OpeningTag "<p>" -Content "state_desc = 'GRANT' and [permission_name] = 'CONNECT' and class_desc = 'ENDPOINT' and major_id = 4)" -ClosingTag "</p>"
+#     HTMLPrinter -OpeningTag "<p>" -Content "state_desc = 'GRANT' and [permission_name] = 'CONNECT' and class_desc = 'ENDPOINT' and major_id = 5)" -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("class", "class_desc", "major_id", "minor_id", "grantee_principal_id", "grantor_principal_id", "type", "permission_name", "state", "state_desc")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 3.9
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.9
-    # Checks if the Windows 'BUILTIN' groups are not SQL Logins.
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 3.10.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.10.
-    # Checks if it is not allowed for 'WINDOWS_GROUP' users to be added to the server.
-    $SqlQuery = "SELECT
-                    PR.[name]      AS name,
-                    PR.[type_desc] AS type_desc
-                FROM
-                    sys.server_principals AS PR
-                ORDER BY
-                    name,
-                    type_desc
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "The following list contains all server principals." -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if none of these principals are Windows BUILTIN groups or accounts." -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if there are no WINDOWS_GROUP users. (type_desc = WINDOWS_GROUP and name contains the MachineName)`n" -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("name", "type_desc")
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 3.9
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.9
+#     # Checks if the Windows 'BUILTIN' groups are not SQL Logins.
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 3.10.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.10.
+#     # Checks if it is not allowed for 'WINDOWS_GROUP' users to be added to the server.
+#     $SqlQuery = "SELECT
+#                     PR.[name]      AS name,
+#                     PR.[type_desc] AS type_desc
+#                 FROM
+#                     sys.server_principals AS PR
+#                 ORDER BY
+#                     name,
+#                     type_desc
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "The following list contains all server principals." -ClosingTag "</p>"
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if none of these principals are Windows BUILTIN groups or accounts." -ClosingTag "</p>"
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if there are no WINDOWS_GROUP users. (type_desc = WINDOWS_GROUP and name contains the MachineName)`n" -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("name", "type_desc")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 3.11.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.11.
-    # Checks if the 'public' server role does not have access to the SQL Agent proxies.
-    $SqlQuery = "SELECT
-                    sp.name AS proxy_name
-                FROM
-                         dbo.sysproxylogin       AS SPL
-                    JOIN sys.database_principals AS DP  ON DP.sid = SPL.sid
-                    JOIN sysproxies              AS SP  ON SP.proxy_id = SPL.proxy_id
-                WHERE
-                    DP.principal_id = USER_ID('public')
-                ;"
-    $Script:Database = "msdb"
-    SqlConnectionBuilder
-    $Dataset = DataCollector $SqlQuery
-    if ($Dataset.Rows.Count -gt 0) {
-        HTMLPrinter -OpeningTag "<p>" -Content "The 'public' serve role has been granted access to the sql agent following proxies." -ClosingTag "</p>"
-        HTMLPrinter -OpeningTag "<p>" -Content "These proxies may have higher privilages then the user calling the proxy. Therefore they should be removed.`n" -ClosingTag "</p>"
-        HTMLPrinter -Table $Dataset -Columns @("proxy_name")
-    }
-    else {
-        HTMLPrinter -OpeningTag "<p>" -Content "The 'msdb' database's 'public' role has not been granted access to proxies.`n" -ClosingTag "</p>"
-    }
-    $Script:Database = $Script:OriginalDatabase
-    SqlConnectionBuilder
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 3.11.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.11.
+#     # Checks if the 'public' server role does not have access to the SQL Agent proxies.
+#     $SqlQuery = "SELECT
+#                     sp.name AS proxy_name
+#                 FROM
+#                          dbo.sysproxylogin       AS SPL
+#                     JOIN sys.database_principals AS DP  ON DP.sid = SPL.sid
+#                     JOIN sysproxies              AS SP  ON SP.proxy_id = SPL.proxy_id
+#                 WHERE
+#                     DP.principal_id = USER_ID('public')
+#                 ;"
+#     $Global:Database = "msdb"
+#     SqlConnectionBuilder
+#     $Dataset = DataCollector $SqlQuery
+#     if ($Dataset.Rows.Count -gt 0) {
+#         HTMLPrinter -OpeningTag "<p>" -Content "The 'public' serve role has been granted access to the sql agent following proxies." -ClosingTag "</p>"
+#         HTMLPrinter -OpeningTag "<p>" -Content "These proxies may have higher privilages then the user calling the proxy. Therefore they should be removed.`n" -ClosingTag "</p>"
+#         HTMLPrinter -Table $Dataset -Columns @("proxy_name")
+#     }
+#     else {
+#         HTMLPrinter -OpeningTag "<p>" -Content "The 'msdb' database's 'public' role has not been granted access to proxies.`n" -ClosingTag "</p>"
+#     }
+#     $Global:Database = $Global:OriginalDatabase
+#     SqlConnectionBuilder
     
-    # This check is based on CIS Microsoft SQL Server 2012 benchmark section 4.2.
-    # This check is based on CIS Microsoft SQL Server 2016 benchmark section 4.2.
-    # Checks if the 'CHECK_EXPIRATION' option is set to 'ON' for all SQL Authenticated Logins with the sysadmin role.
-    # Checks if the 'CHECK_EXPIRATION' option is set to 'ON' for all SQL Authenticated Logins who have been granted the control server permission.
-    # The second UNION ALL has been added to check users who have been granted the CONTROL SERVER permission through a server role.
-    $SqlQuery = "SELECT
-                    L.name                  AS name,
-                    'sysadmin membership'   AS access_method,
-                    L.is_expiration_checked AS is_expiration_checked
-                FROM
-                    sys.sql_logins AS L
-                WHERE
-                    IS_SRVROLEMEMBER('sysadmin', name) = 1
+#     # This check is based on CIS Microsoft SQL Server 2012 benchmark section 4.2.
+#     # This check is based on CIS Microsoft SQL Server 2016 benchmark section 4.2.
+#     # Checks if the 'CHECK_EXPIRATION' option is set to 'ON' for all SQL Authenticated Logins with the sysadmin role.
+#     # Checks if the 'CHECK_EXPIRATION' option is set to 'ON' for all SQL Authenticated Logins who have been granted the control server permission.
+#     # The second UNION ALL has been added to check users who have been granted the CONTROL SERVER permission through a server role.
+#     $SqlQuery = "SELECT
+#                     L.name                  AS name,
+#                     'sysadmin membership'   AS access_method,
+#                     L.is_expiration_checked AS is_expiration_checked
+#                 FROM
+#                     sys.sql_logins AS L
+#                 WHERE
+#                     IS_SRVROLEMEMBER('sysadmin', name) = 1
 
-                UNION ALL
+#                 UNION ALL
 
-                SELECT 
-                    L.name                  AS name,
-                    'CONTROL SERVER'        AS 'access_method',
-                    L.is_expiration_checked AS is_expiration_checked
-                FROM
-                         sys.sql_logins         AS L
-                    JOIN sys.server_permissions AS P ON L.principal_id = P.grantee_principal_id
-                WHERE P.type   = 'CL'
-                  AND P.state IN (
-                                    'G',
-                                    'W'
-                  )
+#                 SELECT 
+#                     L.name                  AS name,
+#                     'CONTROL SERVER'        AS 'access_method',
+#                     L.is_expiration_checked AS is_expiration_checked
+#                 FROM
+#                          sys.sql_logins         AS L
+#                     JOIN sys.server_permissions AS P ON L.principal_id = P.grantee_principal_id
+#                 WHERE P.type   = 'CL'
+#                   AND P.state IN (
+#                                     'G',
+#                                     'W'
+#                   )
 
-                UNION ALL
+#                 UNION ALL
 
-                SELECT
-                    L.name                   AS name,
-                    P.name   + ' membership' AS 'access_method',
-                    L.is_expiration_checked  AS is_expiration_checked
-                FROM
-                         sys.sql_logins          AS L
-                    JOIN sys.server_role_members AS R ON L.principal_id = R.member_principal_id
-                    JOIN sys.server_principals   AS P ON P.principal_id = R.role_principal_id
-                WHERE R.role_principal_id IN (
-                                                SELECT
-                                                    P.principal_id
-                                                FROM
-                                                         sys.server_principals  AS P
-                                                    JOIN sys.server_permissions AS PE ON p.principal_id = pe.grantee_principal_id
-                                                WHERE
-                                                      pe.type = 'CL'
-                                                  AND p.type  = 'R'
-                )
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if SQL Authenticated Logins have the 'CHECK_EXPIRATION' option set to on." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("name", "access_method", "is_expiration_checked")
+#                 SELECT
+#                     L.name                   AS name,
+#                     P.name   + ' membership' AS 'access_method',
+#                     L.is_expiration_checked  AS is_expiration_checked
+#                 FROM
+#                          sys.sql_logins          AS L
+#                     JOIN sys.server_role_members AS R ON L.principal_id = R.member_principal_id
+#                     JOIN sys.server_principals   AS P ON P.principal_id = R.role_principal_id
+#                 WHERE R.role_principal_id IN (
+#                                                 SELECT
+#                                                     P.principal_id
+#                                                 FROM
+#                                                          sys.server_principals  AS P
+#                                                     JOIN sys.server_permissions AS PE ON p.principal_id = pe.grantee_principal_id
+#                                                 WHERE
+#                                                       pe.type = 'CL'
+#                                                   AND p.type  = 'R'
+#                 )
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if SQL Authenticated Logins have the 'CHECK_EXPIRATION' option set to on." -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("name", "access_method", "is_expiration_checked")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 4.3.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 4.3.
-    # Checks if the 'CHECK_POLICY' Option is set to 'True' for all SQL Authenticated Logins.
-    $SqlQuery = "SELECT
-                    SL.name              AS name,
-                    SL.is_disabled       AS is_disabled,
-                    SL.is_policy_checked AS is_policy_checked
-                FROM
-                    sys.sql_logins AS SL
-                ORDER BY
-                    Is_policy_checked,
-                    Is_disabled
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if 'is_policy_checked' is set to 'True'." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("name", "is_disabled", "is_policy_checked")
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 4.3.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 4.3.
+#     # Checks if the 'CHECK_POLICY' Option is set to 'True' for all SQL Authenticated Logins.
+#     $SqlQuery = "SELECT
+#                     SL.name              AS name,
+#                     SL.is_disabled       AS is_disabled,
+#                     SL.is_policy_checked AS is_policy_checked
+#                 FROM
+#                     sys.sql_logins AS SL
+#                 ORDER BY
+#                     Is_policy_checked,
+#                     Is_disabled
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'is_policy_checked' is set to 'True'." -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("name", "is_disabled", "is_policy_checked")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 5.1.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 5.1.
-    # Checks if the maximum number of error log files is set greater than or equal to 12.
-    $SqlQuery = "DECLARE
-                    @NumErrorLogs int
-                ;
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 5.1.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 5.1.
+#     # Checks if the maximum number of error log files is set greater than or equal to 12.
+#     $SqlQuery = "DECLARE
+#                     @NumErrorLogs int
+#                 ;
 
-                EXEC
-                    master.sys.xp_instance_regread
-                        N'HKEY_LOCAL_MACHINE',
-                        N'Software\Microsoft\MSSQLSERVER\MSSQLSERVER',
-                        N'NumErrorLogs',
-                        @NumErrorLogs OUTPUT
-                ;
+#                 EXEC
+#                     master.sys.xp_instance_regread
+#                         N'HKEY_LOCAL_MACHINE',
+#                         N'Software\Microsoft\MSSQLSERVER\MSSQLSERVER',
+#                         N'NumErrorLogs',
+#                         @NumErrorLogs OUTPUT
+#                 ;
 
-                SELECT
-                    ISNULL(@NumErrorLogs, -1) AS [number_of_log_files]
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if the 'NumberOfLogFiles' is 12 or higher." -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "If the number is -1, this might mean that the 'Limit the number of error log files before they are recycled' checkmark is not checked." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("number_of_log_files")
+#                 SELECT
+#                     ISNULL(@NumErrorLogs, -1) AS [number_of_log_files]
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if the 'NumberOfLogFiles' is 12 or higher." -ClosingTag "</p>"
+#     HTMLPrinter -OpeningTag "<p>" -Content "If the number is -1, this might mean that the 'Limit the number of error log files before they are recycled' checkmark is not checked." -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("number_of_log_files")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 5.2.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 5.2.
-    # Checks if the default trace is enabled.
-    $SqlQuery = "SELECT name                      AS name,
-                        CAST(value AS int)        AS value_configured,
-                        CAST(value_in_use AS int) AS value_in_use
-                FROM
-                    sys.configurations AS C
-                WHERE
-                    C.name = 'default trace enabled'
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if 'default trace enabled' is enabled (1)." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 5.2.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 5.2.
+#     # Checks if the default trace is enabled.
+#     $SqlQuery = "SELECT name                      AS name,
+#                         CAST(value AS int)        AS value_configured,
+#                         CAST(value_in_use AS int) AS value_in_use
+#                 FROM
+#                     sys.configurations AS C
+#                 WHERE
+#                     C.name = 'default trace enabled'
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'default trace enabled' is enabled (1)." -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 5.3.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 5.3.
-    # Checks if the 'Login Auditing' is set to 'faled logins'
-    $SqlQuery = "EXEC
-                    xp_loginconfig 'audit level'
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if the 'audit level' is configured to failure." -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "A value of 'all' is also accepted, however it is recommended to check this with the SQL Server audit feature." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("name", "config_value")
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 5.3.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 5.3.
+#     # Checks if the 'Login Auditing' is set to 'faled logins'
+#     $SqlQuery = "EXEC
+#                     xp_loginconfig 'audit level'
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if the 'audit level' is configured to failure." -ClosingTag "</p>"
+#     HTMLPrinter -OpeningTag "<p>" -Content "A value of 'all' is also accepted, however it is recommended to check this with the SQL Server audit feature." -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("name", "config_value")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 5.4.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 5.4.
-    # Checks if the 'SQL Server Audit' is set to capture both 'failed' and 'successful logins'.
-    $SqlQuery = "SELECT
-                    S.name                AS 'audit_name',
-                    CASE
-                        WHEN S.is_state_enabled = 1
-                        THEN 'Y'
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 5.4.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 5.4.
+#     # Checks if the 'SQL Server Audit' is set to capture both 'failed' and 'successful logins'.
+#     $SqlQuery = "SELECT
+#                     S.name                AS 'audit_name',
+#                     CASE
+#                         WHEN S.is_state_enabled = 1
+#                         THEN 'Y'
                         
-                        WHEN S.is_state_enabled = 0
-                        THEN 'N'
-                    END                   AS 'audit_enabled',
-                    S.type_desc           AS 'write_location',
-                    SA.name               AS 'audit_speciication_name',
-                    CASE SA.is_state_enabled
-                        WHEN 1
-                        THEN 'Y'
+#                         WHEN S.is_state_enabled = 0
+#                         THEN 'N'
+#                     END                   AS 'audit_enabled',
+#                     S.type_desc           AS 'write_location',
+#                     SA.name               AS 'audit_speciication_name',
+#                     CASE SA.is_state_enabled
+#                         WHEN 1
+#                         THEN 'Y'
                         
-                        WHEN 0
-                        THEN 'N'
-                    END                   AS 'audit_specification_enabled',
-                    SAD.audit_action_name AS audit_action_name,
-                    SAD.audited_result    AS audited_result
-                FROM
-                         sys.server_audit_specification_details AS SAD
-                    JOIN sys.server_audit_specifications        AS SA  ON SAD.server_specification_id = SA.server_specification_id
-                    JOIN sys.server_audits                      AS S   ON SA.audit_guid               = S.audit_guid
-                ORDER BY
-                    audit_enabled,
-                    audit_name,
-                    audit_specification_enabled,
-                    audit_action_name
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "3 Rows should be returned." -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "For these rows check if both the 'Audit Enabled' and 'Audit Specification Enabled' are set to 'Y'." -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "Also check if 'audited_result' is set to 'SUCCESS AND FAILURE'." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("audit_name", "audit_enabled", "write_location", "audit_specification_name", "audit_specification_enabled", "audit_action_name", "audited_result")
+#                         WHEN 0
+#                         THEN 'N'
+#                     END                   AS 'audit_specification_enabled',
+#                     SAD.audit_action_name AS audit_action_name,
+#                     SAD.audited_result    AS audited_result
+#                 FROM
+#                          sys.server_audit_specification_details AS SAD
+#                     JOIN sys.server_audit_specifications        AS SA  ON SAD.server_specification_id = SA.server_specification_id
+#                     JOIN sys.server_audits                      AS S   ON SA.audit_guid               = S.audit_guid
+#                 ORDER BY
+#                     audit_enabled,
+#                     audit_name,
+#                     audit_specification_enabled,
+#                     audit_action_name
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "3 Rows should be returned." -ClosingTag "</p>"
+#     HTMLPrinter -OpeningTag "<p>" -Content "For these rows check if both the 'Audit Enabled' and 'Audit Specification Enabled' are set to 'Y'." -ClosingTag "</p>"
+#     HTMLPrinter -OpeningTag "<p>" -Content "Also check if 'audited_result' is set to 'SUCCESS AND FAILURE'." -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("audit_name", "audit_enabled", "write_location", "audit_specification_name", "audit_specification_enabled", "audit_action_name", "audited_result")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 6.2.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 6.2.
-    # Checks if user defined CLR assemblies are set to 'SAFE_ACCESS'.
-    $SqlQuery = "SELECT
-                    A.name                AS name,
-                    A.permission_set_desc AS permission_set_desc,
-                    A.is_user_defined     AS is_user_defined
-                FROM
-                    sys.assemblies AS A
-                ORDER BY
-                    is_user_defined,
-                    permission_set_desc
-                ;"
-    $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "Check if all is_user_defined assemblies have 'SAFE_ACCESS' set under 'permission_set_desc'." -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("name", "permission_set_desc", "is_user_defined")
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 6.2.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 6.2.
+#     # Checks if user defined CLR assemblies are set to 'SAFE_ACCESS'.
+#     $SqlQuery = "SELECT
+#                     A.name                AS name,
+#                     A.permission_set_desc AS permission_set_desc,
+#                     A.is_user_defined     AS is_user_defined
+#                 FROM
+#                     sys.assemblies AS A
+#                 ORDER BY
+#                     is_user_defined,
+#                     permission_set_desc
+#                 ;"
+#     $Dataset = DataCollector $SqlQuery
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check if all is_user_defined assemblies have 'SAFE_ACCESS' set under 'permission_set_desc'." -ClosingTag "</p>"
+#     HTMLPrinter -Table $Dataset -Columns @("name", "permission_set_desc", "is_user_defined")
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 7.1.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 7.1.
-    # Checks if 'Symmetric Key encryption algorithm' is set to 'AES_128' or higher.
-    $SqlQuery = "SELECT 
-                        DB_NAME() AS database_name,
-                        SK.*
-                FROM
-                    sys.symmetric_keys AS SK
-                ;"
-    HTMLPrinter -OpeningTag "<p>" -Content "Check for every databse if the 'algorithm_desc' is set to 'AES_128', 'AES_192' or 'AES_256'." -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "If no output is returned for a database then this means that no symmetric key is available for that database.`n" -ClosingTag "</p>"
-    if ($Script:AllDatabases) {
-        foreach ($db in $Script:DatabasesInfo) {
-            $Script:Database = $db.name
-            SqlConnectionBuilder
-            $Dataset = DataCollector $SqlQuery
-            HTMLPrinter -Table $Dataset -Columns @("*")
-        }
-        $Script:Database = $Script:OriginalDatabase
-        SqlConnectionBuilder
-    }
-    else {
-        $Dataset = DataCollector $SqlQuery
-        HTMLPrinter -Table $Dataset -Columns @("*")
-    }
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 7.1.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 7.1.
+#     # Checks if 'Symmetric Key encryption algorithm' is set to 'AES_128' or higher.
+#     $SqlQuery = "SELECT 
+#                         DB_NAME() AS database_name,
+#                         SK.*
+#                 FROM
+#                     sys.symmetric_keys AS SK
+#                 ;"
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check for every databse if the 'algorithm_desc' is set to 'AES_128', 'AES_192' or 'AES_256'." -ClosingTag "</p>"
+#     HTMLPrinter -OpeningTag "<p>" -Content "If no output is returned for a database then this means that no symmetric key is available for that database.`n" -ClosingTag "</p>"
+#     if ($Global:AllDatabases) {
+#         foreach ($db in $Global:DatabasesInfo) {
+#             $Global:Database = $db.name
+#             SqlConnectionBuilder
+#             $Dataset = DataCollector $SqlQuery
+#             HTMLPrinter -Table $Dataset -Columns @("*")
+#         }
+#         $Global:Database = $Global:OriginalDatabase
+#         SqlConnectionBuilder
+#     }
+#     else {
+#         $Dataset = DataCollector $SqlQuery
+#         HTMLPrinter -Table $Dataset -Columns @("*")
+#     }
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 7.2.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 7.2.
-    # Checks if 'Asymmetric Key Size' is set to 'RSA_2048'.
-    $SqlQuery = "SELECT
-                    DB_NAME()     AS database_name,
-                    AK.name       AS key_name,
-                    AK.key_length AS key_length
-                FROM
-                    sys.asymmetric_keys AS AK
-                ;"
-    HTMLPrinter -OpeningTag "<p>" -Content "Check for every databse if the 'key_length' is set to '2048'." -ClosingTag "</p>"
-    HTMLPrinter -OpeningTag "<p>" -Content "If no output is returned for a database then this means that no asymmetric key is available for that database.`n" -ClosingTag "</p>"
-    if ($Script:AllDatabases) {
-        foreach ($db in $Script:DatabasesInfo) {
-            $Script:Database = $db.name
-            SqlConnectionBuilder
-            $Dataset = DataCollector $SqlQuery
-            HTMLPrinter -Table $Dataset -Columns @("database_name", "key_name", "key_length")
-        }
-        $Script:Database = $Script:OriginalDatabase
-        SqlConnectionBuilder
-    }
-    else {
-        $Dataset = DataCollector $SqlQuery
-        HTMLPrinter -Table $Dataset -Columns @("database_name", "key_name", "key_length")
-    }
-}
+#     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 7.2.
+#     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 7.2.
+#     # Checks if 'Asymmetric Key Size' is set to 'RSA_2048'.
+#     $SqlQuery = "SELECT
+#                     DB_NAME()     AS database_name,
+#                     AK.name       AS key_name,
+#                     AK.key_length AS key_length
+#                 FROM
+#                     sys.asymmetric_keys AS AK
+#                 ;"
+#     HTMLPrinter -OpeningTag "<p>" -Content "Check for every databse if the 'key_length' is set to '2048'." -ClosingTag "</p>"
+#     HTMLPrinter -OpeningTag "<p>" -Content "If no output is returned for a database then this means that no asymmetric key is available for that database.`n" -ClosingTag "</p>"
+#     if ($Global:AllDatabases) {
+#         foreach ($db in $Global:DatabasesInfo) {
+#             $Global:Database = $db.name
+#             SqlConnectionBuilder
+#             $Dataset = DataCollector $SqlQuery
+#             HTMLPrinter -Table $Dataset -Columns @("database_name", "key_name", "key_length")
+#         }
+#         $Global:Database = $Global:OriginalDatabase
+#         SqlConnectionBuilder
+#     }
+#     else {
+#         $Dataset = DataCollector $SqlQuery
+#         HTMLPrinter -Table $Dataset -Columns @("database_name", "key_name", "key_length")
+#     }
+# }
 
 function UserManagement {
     <#
@@ -1210,7 +1273,7 @@ function UserManagement {
                     SP.name
                 ;"
     $Dataset = DataCollector $SqlQuery
-    foreach($Row in $Dataset) {
+    foreach ($Row in $Dataset) {
         if ($Row.login_name -ne "sa" -and $Row.login_name -notlike "##MS_*" -and $Row.login_name -notlike "NT Service\*" -and $Row.login_name -notlike "NT AUTHORITY\*" ) {
             $new_row = $AuthorizationMatrix.NewRow()
 
@@ -1235,8 +1298,8 @@ function UserManagement {
     $TempTable.Columns.Add("DBName", "System.String") | Out-Null
     $TempTable.Columns.Add("UserName", "System.String") | Out-Null
     $TempTable.Columns.Add("AliasName", "System.String") | Out-Null
-    foreach($DataTable in $Dataset.Tables) {
-        foreach($Row in $DataTable){
+    foreach ($DataTable in $Dataset.Tables) {
+        foreach ($Row in $DataTable) {
             $TempTable.ImportRow($Row)
         }
     }
@@ -1261,14 +1324,14 @@ function UserManagement {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "A list of who is in server-level roles" -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("server_name", "server_role", "member_name", "type_desc", "date_created", "last_modified")
-    foreach($Row in $Dataset) {
+    foreach ($Row in $Dataset) {
         if ($Row.member_name -ne "sa" -and $Row.member_name -notlike "##MS_*" -and $Row.member_name -notlike "NT Service\*" -and $Row.member_name -notlike "NT AUTHORITY\*" ) {
-                $new_row = $AuthorizationMatrix.NewRow()
+            $new_row = $AuthorizationMatrix.NewRow()
 
-                $new_row.login_name = $Row.member_name
-                $new_row.server_name = $Row.server_name
-                $new_row.login_type = $Row.type_desc
-                $new_row.srv_role_name = $Row.server_role
+            $new_row.login_name = $Row.member_name
+            $new_row.server_name = $Row.server_name
+            $new_row.login_type = $Row.type_desc
+            $new_row.srv_role_name = $Row.server_role
 
 
             $AuthorizationMatrix.Rows.Add($new_row)
@@ -1332,7 +1395,7 @@ function UserManagement {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "A list of permissions directly granted or denied to logins." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("server_name", "schema_name", "object_name", "type_desc", "grantee", "grantor", "principal_type_desc", "permission_name", "permission_state_desc")
-    foreach($Row in $Dataset) {
+    foreach ($Row in $Dataset) {
         if ($Row.grantee -ne "sa" -and $Row.grantee -notlike "##MS_*" -and $Row.grantee -notlike "NT Service\*" -and $Row.grantee -notlike "NT AUTHORITY\*" ) {
             $new_row = $AuthorizationMatrix.NewRow()
 
@@ -1345,7 +1408,7 @@ function UserManagement {
             $new_row.srv_permission_name = $Row.permission_name
             $new_row.srv_permission_state = $Row.permission_state_desc
 
-        $AuthorizationMatrix.Rows.Add($new_row)
+            $AuthorizationMatrix.Rows.Add($new_row)
         }
     }
 
@@ -1378,7 +1441,7 @@ function UserManagement {
                 ;"
     
     # Step 6: Audit roles on each database, defining what they are, and what they can do.
-    $SqlQueryDBRoles ="SELECT
+    $SqlQueryDBRoles = "SELECT
                     @@SERVERNAME                AS server_name,
                     DB_NAME()                   AS database_name,
                     DPRIN.name                  AS role_name,
@@ -1441,17 +1504,17 @@ function UserManagement {
                     permission_name
                 ;"
 
-    if ($Script:AllDatabases) {
+    if ($Global:AllDatabases) {
         HTMLPrinter -OpeningTag "<h3 id='Databases' class='headers'>" -Content "Databases" -ClosingTag "</h3>"
-        foreach ($db in $Script:DatabasesInfo) {
-            $Script:Database = $db.name
+        foreach ($db in $Global:DatabasesInfo) {
+            $Global:Database = $db.name
             SqlConnectionBuilder
-            HTMLPrinter -OpeningTag "<h3 id='$Script:Database' class='headers'>" -Content $Script:Database -ClosingTag "</h3>"
+            HTMLPrinter -OpeningTag "<h3 id='$Global:Database' class='headers'>" -Content $Global:Database -ClosingTag "</h3>"
 
             $Dataset = DataCollector $SqlQueryDBAccess
             HTMLPrinter -OpeningTag "<p>" -Content "A list of users and the roles they are in." -ClosingTag "</p>"
             HTMLPrinter -Table $Dataset -Columns @("server_name", "database_name", "user_name", "role_name", "login_name", "login_type", "date_created", "last_modified")
-            foreach($Row in $Dataset) {
+            foreach ($Row in $Dataset) {
                 if ($Row.user_name -ne "guest" -and $Row.user_name -ne "INFORMATION_SCHEMA" -and $Row.user_name -ne "MS_DataCollectorInternalUser" -and $Row.user_name -ne "sys" -and $Row.login_name -ne "sa" -and $Row.login_name -notlike "##MS_*" -and $Row.login_name -notlike "NT Service\*" -and $Row.login_name -notlike "NT AUTHORITY\*") {
                     $new_row = $AuthorizationMatrix.NewRow()
         
@@ -1462,7 +1525,7 @@ function UserManagement {
                     $new_row.db_user_name = $Row.user_name
                     $new_row.db_role_name = $Row.role_name
         
-                $AuthorizationMatrix.Rows.Add($new_row)
+                    $AuthorizationMatrix.Rows.Add($new_row)
                 }
             }
 
@@ -1477,7 +1540,7 @@ function UserManagement {
                 $Dataset = DataCollector $SqlQueryDBRights
                 HTMLPrinter -OpeningTag "<p>" -Content "Audit any users that have access to specific objects outside of a role" -ClosingTag "</p>"
                 HTMLPrinter -Table $Dataset -Columns @("server_name", "database_name", "schema_name", "object_name", "type_desc", "grantee", "login_name", "grantor", "principal_type_desc", "permission_name", "permission_type_desc")    
-                foreach($Row in $Dataset) {
+                foreach ($Row in $Dataset) {
                     if ($Row.user_name -ne "guest" -and $Row.user_name -ne "INFORMATION_SCHEMA" -and $Row.user_name -ne "MS_DataCollectorInternalUser" -and $Row.user_name -ne "sys" -and $Row.login_name -ne "sa" -and $Row.login_name -notlike "##MS_*" -and $Row.login_name -notlike "NT Service\*" -and $Row.login_name -notlike "NT AUTHORITY\*") {
                         $new_row = $AuthorizationMatrix.NewRow()
 
@@ -1497,15 +1560,15 @@ function UserManagement {
                 }
             }
         }
-        $Script:Database = $Script:OriginalDatabase
+        $Global:Database = $Global:OriginalDatabase
         SqlConnectionBuilder
     }
     else {
-        HTMLPrinter -OpeningTag "<h3 id='$Script:Database' class='headers'>" -Content $Script:Database -ClosingTag "</h3>"
+        HTMLPrinter -OpeningTag "<h3 id='$Global:Database' class='headers'>" -Content $Global:Database -ClosingTag "</h3>"
         $Dataset = DataCollector $SqlQueryDBAccess
         HTMLPrinter -OpeningTag "<p>" -Content "A list of users and the roles they are in." -ClosingTag "</p>"
         HTMLPrinter -Table $Dataset -Columns @("server_name", "database_name", "user_name", "role_name", "login_name", "login_type", "date_created", "last_modified")
-        foreach($Row in $Dataset) {
+        foreach ($Row in $Dataset) {
             if ($Row.user_name -ne "guest" -and $Row.user_name -ne "INFORMATION_SCHEMA" -and $Row.user_name -ne "MS_DataCollectorInternalUser" -and $Row.user_name -ne "sys" -and $Row.login_name -ne "sa" -and $Row.login_name -notlike "##MS_*" -and $Row.login_name -notlike "NT Service\*" -and $Row.login_name -notlike "NT AUTHORITY\*") {
                 $new_row = $AuthorizationMatrix.NewRow()
 
@@ -1531,22 +1594,22 @@ function UserManagement {
         if ($Dataset.Tables.Count -ne 0) {
             HTMLPrinter -OpeningTag "<p>" -Content "Audit any users that have access to specific objects outside of a role" -ClosingTag "</p>"
             HTMLPrinter -Table $Dataset -Columns @("server_name", "database_name", "schema_name", "object_name", "type_desc", "grantee", "login_name", "grantor", "principal_type_desc", "permission_name", "permission_type_desc")
-            foreach($Row in $Dataset) {
+            foreach ($Row in $Dataset) {
                 if ($Row.user_name -ne "guest" -and $Row.user_name -ne "INFORMATION_SCHEMA" -and $Row.user_name -ne "MS_DataCollectorInternalUser" -and $Row.user_name -ne "sys" -and $Row.login_name -ne "sa" -and $Row.login_name -notlike "##MS_*" -and $Row.login_name -notlike "NT Service\*" -and $Row.login_name -notlike "NT AUTHORITY\*") {
-                $new_row = $AuthorizationMatrix.NewRow()
+                    $new_row = $AuthorizationMatrix.NewRow()
 
-                $new_row.login_name = $Row.login_name
-                $new_row.server_name = $Row.server_name
-                $new_row.login_type = $Row.principal_type_desc
-                $new_row.db_name = $Row.database_name
-                $new_row.db_user_name = $Row.grantee
-                $new_row.db_schema_name = $Row.schema_name
-                $new_row.db_object_name = $Row.object_name
-                $new_row.db_object_type = $Row.type_desc
-                $new_row.db_permission_name = $Row.permission_name
-                $new_row.db_permission_state = $Row.permission_state_desc
+                    $new_row.login_name = $Row.login_name
+                    $new_row.server_name = $Row.server_name
+                    $new_row.login_type = $Row.principal_type_desc
+                    $new_row.db_name = $Row.database_name
+                    $new_row.db_user_name = $Row.grantee
+                    $new_row.db_schema_name = $Row.schema_name
+                    $new_row.db_object_name = $Row.object_name
+                    $new_row.db_object_type = $Row.type_desc
+                    $new_row.db_permission_name = $Row.permission_name
+                    $new_row.db_permission_state = $Row.permission_state_desc
 
-                $AuthorizationMatrix.Rows.Add($new_row)
+                    $AuthorizationMatrix.Rows.Add($new_row)
                 }
             }
         }
@@ -1560,24 +1623,24 @@ function UserManagement {
 
     HTMLPrinter -OpeningTag "<h1 id='Authorizationmatrix' class='headers'>" -Content "Authorizationmatrix" -ClosingTag "</h1>"
     HTMLPrinter -Table $AuthorizationMatrix -Columns @(
-    "login_name",
-    "server_name",
-    "login_type",
-    "srv_role_name",
-    "srv_schema_name",
-    "srv_object_name",
-    "srv_object_type",
-    "srv_permission_name",
-    "srv_permission_state",
-    "db_name",
-    "db_user_name",
-    "db_role_name",
-    "db_schema_name",
-    "db_object_name",
-    "db_object_type",
-    "db_permission_name",
-    "db_permission_state",
-    "notes"
+        "login_name",
+        "server_name",
+        "login_type",
+        "srv_role_name",
+        "srv_schema_name",
+        "srv_object_name",
+        "srv_object_type",
+        "srv_permission_name",
+        "srv_permission_state",
+        "db_name",
+        "db_user_name",
+        "db_role_name",
+        "db_schema_name",
+        "db_object_name",
+        "db_object_type",
+        "db_permission_name",
+        "db_permission_state",
+        "notes"
     )
 }
 
@@ -1659,25 +1722,24 @@ function HTMLPrinter {
 
     try {   
         if ($Table -ne $null) {
-            Out-File -FilePath $Script:Outfile -Encoding utf8 -InputObject $startCollapsable -append
-            out-file -filepath $Script:Outfile -Encoding utf8 -inputobject ($Table | ConvertTo-Html -Property $Columns -Fragment) -append
-            Out-File -FilePath $Script:Outfile -Encoding utf8 -InputObject "</div>" -append
+            Out-File -FilePath $Global:Outfile -Encoding utf8 -InputObject $startCollapsable -append
+            Out-File -filepath $Global:Outfile -Encoding utf8 -inputobject ($Table | ConvertTo-Html -Property $Columns -Fragment) -append
+            Out-File -FilePath $Global:Outfile -Encoding utf8 -InputObject "</div>" -append
         }
         elseif ($Content -ne "") {
-            out-file -filepath $Script:Outfile -Encoding utf8 -InputObject $OpeningTag, $Content, $ClosingTag -append
+            Out-File -filepath $Global:Outfile -Encoding utf8 -InputObject $OpeningTag, $Content, $ClosingTag -append
         }
         elseif ($HTMLStart) {
-            out-file -filepath $Script:Outfile -Encoding utf8 -InputObject $startHTML -Append
+            Out-File -filepath $Global:Outfile -Encoding utf8 -InputObject $startHTML -Append
         }
         elseif ($HTMLEnd) {
-            out-file -filepath $Script:Outfile -Encoding utf8 -InputObject $endHTML -Append
+            Out-File -filepath $Global:Outfile -Encoding utf8 -InputObject $endHTML -Append
         }
     }
     catch {
         Write-Host "An Error has occured."
     }
 }
-
 
 
 
