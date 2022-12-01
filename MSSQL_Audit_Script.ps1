@@ -32,6 +32,13 @@ Specifies which sections of the script to run.
 This parameter is optional. If it is not used the default 'All' will be used.
 Valid options are: 'All', 'CIS', 'STIG', 'UserManagement'.
 
+.PARAMETER NoCsvOutput
+Specifies whether to create CSV files or not. Default true.
+
+.PARAMETER Version
+Specifies which mssql server version the server is running, 
+e.g. 2012 = 12, 2016 = 16. Defaulting to the latest.
+
 .INPUTS
 None.
 
@@ -90,7 +97,20 @@ param(
     [parameter(ParameterSetName = "SQLAuthentication")]
     [ValidateSet('All', 'CIS', 'STIG', 'UserManagement')]
     [String[]]
-    $Include = 'All'
+    $Include = 'All',
+
+    # Parameter help description
+    [parameter(ParameterSetName = "WindowsAuthentication")]
+    [parameter(ParameterSetName = "SQLAuthentication")]
+    [int]
+    $Version = 19,
+
+    # Specifies wether to create output CSVs.
+    # This parameter is optional. If it is not set it will be true..
+    [parameter(ParameterSetName = "WindowsAuthentication")]
+    [parameter(ParameterSetName = "SQLAuthentication")]
+    [switch]
+    $NoCsvOutput
 )
 
 function Startup {
@@ -120,14 +140,16 @@ function Startup {
     $Script:Stopwatch.Start()
 
     # The password will not be visible while typing it in.
-    if($SQLAuthentication) {
+    if ($SQLAuthentication) {
         $SecurePassword = Read-Host -AsSecureString "Enter password"
         $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecurePassword)
         $Script:Password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
     }
-
+    
+    $Script:StartTime = (Get-Date).ToString('MM-dd-yyyy-hh-mm')
+    mkdir $Script:StartTime
     #Sets the output file. If the file already exists the user is prompted to override it or stop the script.
-    $Script:Outfile = "audit-MSSQL-" + $Script:Server + ".html"
+    $Script:Outfile = ".\$($Script:StartTime)\audit-MSSQL-" + $Script:Server + ".html"
     if (Test-Path -Path $Script:Outfile) {
         Write-Host "The output file already exists, would you like to overwrite it?"
         Remove-Item $Script:Outfile -Confirm
@@ -157,6 +179,19 @@ function Startup {
     $Script:OriginalDatabase = $Script:Database
 
     SqlConnectionBuilder    
+
+    try {
+        Write-Host "Testing Database connection."
+        $Script:SqlConnection.Open()
+    }
+    catch {
+        Write-Warning "Something went wrong while opening the connection."
+        exit 1
+        return
+    }
+    finally {
+        $Script:SqlConnection.Close()
+    }
 
     CheckFullVersion
     GenerateDatabasesInfo
@@ -191,7 +226,7 @@ function Main {
     if ($Script:Include -eq 'All' -or $Script:Include -eq 'CIS') {
         SecurityChecklists
 
-        Write-Host "CIS Microsoft SQL Server 2016 benchmark completed in:" $Script:Stopwatch.Elapsed
+        Write-Host "CIS Microsoft SQL Server benchmark completed in:" $Script:Stopwatch.Elapsed
         $Script:TotalTime += $Script:Stopwatch.Elapsed
         Write-Host "Total time elapsed:                                  " $Script:TotalTime
         $Script:Stopwatch.Restart()
@@ -267,15 +302,14 @@ function DataCollector {
     $SqlAdapter.Fill($Dataset) | Out-Null
 
 
-    if($AllTables -eq "y")
-    {
-        ,$Dataset
+    if ($AllTables -eq "y") {
+        , $Dataset
     }
     else {
         $DataTable = New-Object System.Data.DataTable
         $DataTable = $Dataset.Tables[0]
 
-        ,$DataTable
+        , $DataTable
     }
 }
 
@@ -294,12 +328,16 @@ function CheckFullVersion {
     [CmdletBinding()]
 
     $SqlQuery = "SELECT
-                    @@VERSION AS Version
+                    @@VERSION AS Version, SERVERPROPERTY('MachineName') as Hostname
                 ;"
     $Dataset = DataCollector $SqlQuery
 
     HTMLPrinter -OpeningTag "<h3 id='Server_version' class='headers'>" -Content "Server version" -ClosingTag "</h3>"
-    HTMLPrinter -Table $Dataset -Columns @("Version")
+    HTMLPrinter -Table $Dataset -Columns @("Version", "Hostname")
+    CsvWriter 'GEN-Version' "Version, Hostname"
+    foreach ($Row in $Dataset) {
+        CsvWriter 'GEN-Version' "$([string]::join('',($Row.Version.Split("`r?`n")))), $($Row.Hostname)"
+    }
 }
 
 function GenerateDatabasesInfo {
@@ -355,6 +393,54 @@ function GenerateDatabasesInfo {
 
     HTMLPrinter -OpeningTag "<h3 id='Databases' class='headers'>" -Content "Databases" -ClosingTag "</h3>"
     HTMLPrinter -Table $Script:DatabasesInfo -Columns @("name", "create_date", "number_of_users")
+    CsvWriter 'GEN-Databases' "name,create_date,number_of_users"
+    foreach ($Row in $Script:DatabasesInfo) {
+        CsvWriter 'GEN-Databases' "$($Row.name),$($Row.create_date),$($Row.number_of_users)"
+    }
+}
+
+function CsvWriter {
+    param (
+        # The SQL query to run.
+        [parameter(Mandatory = $true)]
+        [String]
+        $FileName,
+
+        [parameter(Mandatory = $true)]
+        [String]
+        $Text
+    )
+    $FileName = ".\$($Script:StartTime)\audit-MSSQL-" + $Script:Server + "-" + $FileName + ".CSV"
+    if ($Script:NoCsvOutput) {
+        # Empty switch to prevent CSV writing when the NoCsvOutput argument is present.
+    }
+    else {
+        Add-Content $FileName $Text
+    }
+}
+
+function ConvertTo-SQLHashString {
+    <#
+    .SYNOPSIS
+    Converts SID back into the SID as seen in SSMS.
+    
+    .DESCRIPTION
+    Converts SID back into the SID as seen in SSMS.
+    Since it automatically is converted to a binary, therefor powershell can't show the value properly.
+    
+    .EXAMPLE
+    ConvertTo-SQLHashString $sid
+    
+    .NOTES
+    General notes
+    #>
+    [CmdletBinding()]
+    [OutputType([String])]
+
+    param([parameter(Mandatory = $true)] $binhash)
+    $outstring = '0x'
+    $binhash | ForEach-Object { $outstring += ('{0:X}' -f $_).PadLeft(2, '0') }
+    return $outstring
 }
 
 function SecurityChecklists {
@@ -418,9 +504,9 @@ function SecurityChecklists {
     * Section 3.2  (Scored)
     * Section 3.3  (Scored)
     * Section 3.4  (Scored)
-    * Section 3.5  (Scored)     (Manual)
-    * Section 3.6  (Scored)     (Manual)
-    * Section 3.7  (Scored)     (Manual)
+    * Section 3.5  (Scored)     (Manual) Can this be automated?
+    * Section 3.6  (Scored)     (Manual) Can this be automated?
+    * Section 3.7  (Scored)     (Manual) Can this be automated? Net user and such?
     * Section 3.8  (Scored)
     * Section 3.9  (Scored)
     * Section 3.10 (Scored)
@@ -493,9 +579,15 @@ function SecurityChecklists {
                     SERVERPROPERTY('ProductVersion') as version
                 ;"
     $Dataset = DataCollector $SqlQuery
-    HTMLPrinter -OpeningTag "<p>" -Content "The server contains the following Service Pack and Version." -ClosingTag "</p>"
+    HTMLPrinter -OpeningTag "<p>" -Content "The server contains the following Service Pack and Version. These can be found on microsofts website." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "Check if these match the expected versions." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("SP_installed", "version")
+    CsvWriter 'CIS-Version' "SP_installed,version"
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-Version' "$($Row.SP_installed),$($Row.version)"
+    }
+    
+    
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.1.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.1.
@@ -511,21 +603,75 @@ function SecurityChecklists {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'Add Hoc Distributed Queries' is disabled (0)." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
+    CsvWriter 'CIS-Compliance' "name,value_configured,value_in_use,expected,database"
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-Compliance' "$($Row.name),$($Row.value_configured),$($Row.value_in_use),0"
+    }
 
-    # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.2.
-    # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.2.
-    # Checks if the option 'clr enabled' is disabled.
+    # This first query is based on CIS Microsoft SQL Server 2012 benchmark section 2.2.
+    # This first query is based on CIS Microsoft SQL Server 2016 benchmark section 2.2.
+    # This second query is based on CIS Microsoft SQL Server 2019 benchmark section 2.2 and 2.17.
+    # Checks if the option 'clr enabled' is disabled or 'clr strict security' is enabled for 2019..
+    $SqlQuery = ""
     $SqlQuery = "SELECT name                      AS name,
-                        CAST(value AS int)        AS value_configured,
-                        CAST(value_in_use AS int) AS value_in_use
-                FROM
-                    sys.configurations AS C
-                WHERE
-                    C.name = 'clr enabled'
-                ;"
+                    CAST(value AS int)        AS value_configured,
+                    CAST(value_in_use AS int) AS value_in_use
+            FROM
+                sys.configurations AS C
+            WHERE
+                C.name = 'clr enabled'
+            ;"
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'clr enabled' is disabled (0)." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-Compliance' "$($Row.name),$($Row.value_configured),$($Row.value_in_use),0"
+    }
+    # For 2019 (And above?) Only.
+    if ($Script:AllDatabases) {
+        foreach ($db in $Script:DatabasesInfo) {
+            $SqlQuery = "
+                SELECT 
+                    name            AS name,
+                    CAST(value as int)  as value_configured,
+                    CAST(value_in_use   as int) as value_in_use
+                FROM 
+                    sys.configurations
+                WHERE 
+                    name = 'clr strict security';
+            ;"
+            $Script:Database = $db.name
+            SqlConnectionBuilder
+            $Dataset = DataCollector $SqlQuery
+            if ($Dataset.Rows.Count -gt 0) {
+                HTMLPrinter -OpeningTag "<p>" -Content "Check if 'clr strict security' is enabled (1) for $($db.name)." -ClosingTag "</p>"
+                HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
+                foreach ($Row in $Dataset) {
+                    CsvWriter 'CIS-Compliance' "$($Row.name),$($Row.value_configured),$($Row.value_in_use),0,$($db.name)"
+                }
+            }
+        }
+        $Script:Database = $Script:OriginalDatabase
+    }
+    else {
+        if ($Script:Version -ge 19) {
+            $SqlQuery = "SELECT name            AS name,
+                        CAST(value as int)  as value_configured,
+                        CAST(value_in_use   as int) as value_in_use
+                    FROM 
+                        sys.configurations
+                    WHERE 
+                        name = 'clr strict security';
+                    ;"
+            $Dataset = DataCollector $SqlQuery
+            HTMLPrinter -OpeningTag "<p>" -Content "Check if 'clr strict security' is enabled (1)." -ClosingTag "</p>"
+            HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
+            foreach ($Row in $Dataset) {
+                CsvWriter 'CIS-Compliance' "$($Row.name),$($Row.value_configured),$($Row.value_in_use),0"
+            }
+        }
+    }
+
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.3.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.3.
@@ -541,6 +687,9 @@ function SecurityChecklists {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'cross db ownership chaining' is disabled (0)." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-Compliance' "$($Row.name),$($Row.value_configured),$($Row.value_in_use),0"
+    }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.4.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.4.
@@ -556,6 +705,9 @@ function SecurityChecklists {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'Database Mail XPs' is disabled (0)." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-Compliance' "$($Row.name),$($Row.value_configured),$($Row.value_in_use),0"
+    }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.5.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.5.
@@ -571,6 +723,9 @@ function SecurityChecklists {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'Ole Automation Procedures' is disabled (0)." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-Compliance' "$($Row.name),$($Row.value_configured),$($Row.value_in_use),0"
+    }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.6.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.6.
@@ -586,6 +741,9 @@ function SecurityChecklists {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'remote access' is disabled (0)." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-Compliance' "$($Row.name),$($Row.value_configured),$($Row.value_in_use),0"
+    }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.7.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.7.
@@ -607,6 +765,9 @@ function SecurityChecklists {
     else {
         HTMLPrinter -OpeningTag "<p>" -Content "This server is in a cluster. Therefore the check for 'remote admin connections' does not apply." -ClosingTag "</p>"
     }
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-Compliance' "$($Row.name),$($Row.value_configured),$($Row.value_in_use),0"
+    }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.8.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.8.
@@ -623,6 +784,9 @@ function SecurityChecklists {
     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'scan for startup procs' is disabled (0)" -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "Note that this option might be enabled to use certain audit traces, stored procedures and replication." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-Compliance' "$($Row.name),$($Row.value_configured),$($Row.value_in_use),0"
+    }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.9.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.9.
@@ -630,10 +794,15 @@ function SecurityChecklists {
     HTMLPrinter -OpeningTag "<p>" -Content "Check for the following databases if they have the (is_trustworthy_on set to False)." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "The 'msdb' database is required to have 'is_trustworthy_on set to True.`n" -ClosingTag "</p>"
     HTMLPrinter -Table $Script:DatabasesInfo -Columns @("name", "is_trustworthy_on")
+    CsvWriter 'CIS-Trustworthy' "name,is_trustworthy_on"
+    foreach ($Row in $Script:DatabasesInfo) {
+        CsvWriter 'CIS-Trustworthy' "$($Row.name),$($Row.is_trustworthy_on)"
+    }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.11.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.11.
     # Checks if the MSSQL Server does not use the default port 1433.
+    # Outdatedd but still works. Newer versions don't work when run from the machine it's hosted on.
     $SqlQuery = "DECLARE
                     @value nvarchar (256)
                 ;
@@ -653,6 +822,9 @@ function SecurityChecklists {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check that the server does not use the default TCP_Port 1433." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("TCP_port")
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-Compliance' "TCP_port,$($Row.TCP_port),,Not 1433"
+    }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.12.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.12.
@@ -677,6 +849,10 @@ function SecurityChecklists {
     HTMLPrinter -OpeningTag "<p>" -Content "Check if the server is hidden (1)." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "If the server is in a cluster it might be necessary to have this turned off." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("is_hidden", "is_in_cluster")
+    CsvWriter 'CIS-Hidden-Cluster' "is_hidden,is_in_cluster,expected_is_hidden"
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-Hidden-Cluster' "$($Row.is_hidden),$($Row.is_in_cluster),1"
+    }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.13.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.13.
@@ -697,6 +873,10 @@ function SecurityChecklists {
     HTMLPrinter -OpeningTag "<p>" -Content "Check if the default 'sa' account is disabled (True)" -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "Check if the default 'sa' account has been renamed." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("SID", "name", "is_disabled")
+    CsvWriter 'CIS-sa-account' "SID,name,is_disabled"
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-sa-account' "$($Row.SID),$($Row.name),$($Row.is_disabled)"
+    }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.15.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.15.
@@ -712,12 +892,20 @@ function SecurityChecklists {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'xp_cmdshell' is disabled (0)." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-Compliance' "$($Row.name),$($Row.value_configured),$($Row.value_in_use),0"
+    }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.16.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.16.
     # Checks if the is_auto_close_on option is turned off for contained databases.
     HTMLPrinter -OpeningTag "<p>" -Content "Check if the 'is_auto_close_on' option is set to 'False' for the databases with 'containment' not set to '0'." -ClosingTag "</p>"
     HTMLPrinter -Table $Script:DatabasesInfo -Columns @("name", "containment", "containment_desc", "is_auto_close_on")
+    CsvWriter 'CIS-containment' "name,containment,containment_desc,is_auto_close_on"
+    foreach ($Row in $Script:DatabasesInfo) {
+        CsvWriter 'CIS-containment' "$($Row.name),$($Row.containment),$($Row.containment_desc),$($Row.is_auto_close_on)"
+    }
+
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 2.17.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 2.17.
@@ -738,6 +926,11 @@ function SecurityChecklists {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if no login exists with the name 'sa', even if this is not the original 'sa' account." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("principal_ID", "name", "is_disabled")
+    CsvWriter 'CIS-sa' "principal_ID,name,is_disabled,expected"
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-sa' "$($Row.principal_ID),$($Row.name),$($Row.is_disabled),True"
+    }
+
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 3.1.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.1.
@@ -748,6 +941,9 @@ function SecurityChecklists {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'login_mode' is set to 'Windows Authentication Mode' only (1)." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("login_mode")
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-Compliance' "login_mode,$($Row.login_mode),,1"
+    }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 3.2.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.2.
@@ -764,12 +960,16 @@ function SecurityChecklists {
                 ;"
     HTMLPrinter -OpeningTag "<p>" -Content "Check for each of the following databases if the 'CONNECT' permission has been revoked for the 'guest' user." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "The connect permission is required for the 'master', 'tempdb', 'msdb' databases. Therefore they can be ignored." -ClosingTag "</p>"
+    CsvWriter 'CIS-CONNECT-permission' "database_name,DB_user,permission_name,state_desc"
     if ($Script:AllDatabases) {
         foreach ($db in $Script:DatabasesInfo) {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $Dataset = DataCollector $SqlQuery
             HTMLPrinter -Table $Dataset -Columns @("database_name", "DB_user", "permission_name", "state_desc")
+            foreach ($Row in $Dataset) {
+                CsvWriter 'CIS-CONNECT-permission' "$($Row.database_name),$($Row.DB_user),$($Row.permission_name),$($Row.state_desc)"
+            }
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
@@ -777,6 +977,7 @@ function SecurityChecklists {
     else {
         $Dataset = DataCollector $SqlQuery
         HTMLPrinter -Table $Dataset -Columns @("database_name", "DB_user", "permission_name", "state_desc")
+        CsvWriter 'CIS-CONNECT-permission' "$($Row.database_name),$($Row.DB_user),$($Row.permission_name),$($Row.state_desc)"
     }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 3.3
@@ -786,14 +987,39 @@ function SecurityChecklists {
                     sp_change_users_login
                         @Action = 'Report'
                 ;"
-    $Dataset = DataCollector $SqlQuery
-    if ($Dataset.Rows.Count -gt 0) {
-        HTMLPrinter -OpeningTag "<p>" -Content "The following accounts are 'orphaned'." -ClosingTag "</p>"
-        HTMLPrinter -OpeningTag "<p>" -Content "These accounts should probably be removed.`n" -ClosingTag "</p>"
-        HTMLPrinter -Table $Dataset -Columns @("UserName", "UserSID")
+    CsvWriter 'CIS-orphaned-users' "name,UserName,UserSID"
+    if ($Script:AllDatabases) {
+        foreach ($db in $Script:DatabasesInfo) {
+            $Script:Database = $db.name
+            SqlConnectionBuilder
+            $Dataset = DataCollector $SqlQuery
+            if ($Dataset.Rows.Count -gt 0) {
+                HTMLPrinter -OpeningTag "<p>" -Content "The following accounts in $($db.name) are 'orphaned'." -ClosingTag "</p>"
+                HTMLPrinter -OpeningTag "<p>" -Content "These accounts should probably be removed.`n" -ClosingTag "</p>"
+                HTMLPrinter -Table $Dataset -Columns @("UserName", "UserSID")
+                foreach ($Row in $Dataset) {
+                    CsvWriter 'CIS-orphaned-users' "$($db.name),$($Row.UserName),$(ConvertTo-SQLHashString $Row.UserSID)"
+                }
+            }
+            else {
+                HTMLPrinter -OpeningTag "<p>" -Content "There are no accounts in $($db.name) that are 'orphaned'.`n" -ClosingTag "</p>"
+            }
+        }
+        $Script:Database = $Script:OriginalDatabase
     }
     else {
-        HTMLPrinter -OpeningTag "<p>" -Content "There are no accounts that are 'orphaned'.`n" -ClosingTag "</p>"
+        $Dataset = DataCollector $SqlQuery
+        if ($Dataset.Rows.Count -gt 0) {
+            HTMLPrinter -OpeningTag "<p>" -Content "The following accounts are 'orphaned'." -ClosingTag "</p>"
+            HTMLPrinter -OpeningTag "<p>" -Content "These accounts should probably be removed.`n" -ClosingTag "</p>"
+            HTMLPrinter -Table $Dataset -Columns @("UserName", "UserSID")
+            foreach ($Row in $Dataset) {
+                CsvWriter 'CIS-orphaned-users' "$($Script:OriginalDatabase),$($Row.UserName),$(ConvertTo-SQLHashString $Row.UserSID)"
+            }
+        }
+        else {
+            HTMLPrinter -OpeningTag "<p>" -Content "There are no accounts that are 'orphaned'.`n" -ClosingTag "</p>"
+        }
     }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 3.4.
@@ -815,14 +1041,18 @@ function SecurityChecklists {
                     authentication_type,
                     DB_user
                 ;"
+    CsvWriter 'CIS-containment-auth' "database_name,DB_user,authentication_type,not_expected"
     if ($Script:AllDatabases -and $Script:DatabasesInfo.containment -contains 1) {
         foreach ($db in $Script:DatabasesInfo) {
-            if($db.containment -eq 1){
+            if ($db.containment -eq 1) {
                 $Script:Database = $db.name
                 SqlConnectionBuilder
                 $Dataset = DataCollector $SqlQuery
                 HTMLPrinter -OpeningTag "<p>" -Content "Check if SQL authentication (authentication_type 2) is not used in this contained database." -ClosingTag "</p>"
                 HTMLPrinter -Table $Dataset -Columns @("database_name", "DB_user", "authentication_type")
+                foreach ($Row in $Dataset) {
+                    CsvWriter 'CIS-containment-auth' "$($Row.database_name),$($Row.DB_user),$($Row.authentication_type),2"
+                }
             }
         }
         $Script:Database = $Script:OriginalDatabase
@@ -833,10 +1063,13 @@ function SecurityChecklists {
     } 
     else {
         $contained = $Script:DatabasesInfo | Where-Object name -eq $Database
-        if($contained.containment -eq 1){
+        if ($contained.containment -eq 1) {
             $Dataset = DataCollector $SqlQuery
             HTMLPrinter -OpeningTag "<p>" -Content "Check if SQL authentication (authentication_type 2) is not used in this contained database." -ClosingTag "</p>"
             HTMLPrinter -Table $Dataset -Columns @("database_name", "DB_user", "authentication_type")
+            foreach ($Row in $Dataset) {
+                CsvWriter 'CIS-containment-auth' "$($Row.database_name),$($Row.DB_user),$($Row.authentication_type),2"
+            }
         }
         else {
             HTMLPrinter -OpeningTag "<p>" -Content "This database is not a contained database." -ClosingTag "</p>"
@@ -867,7 +1100,11 @@ function SecurityChecklists {
     HTMLPrinter -OpeningTag "<p>" -Content "state_desc = 'GRANT' and [permission_name] = 'CONNECT' and class_desc = 'ENDPOINT' and major_id = 3)" -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "state_desc = 'GRANT' and [permission_name] = 'CONNECT' and class_desc = 'ENDPOINT' and major_id = 4)" -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "state_desc = 'GRANT' and [permission_name] = 'CONNECT' and class_desc = 'ENDPOINT' and major_id = 5)" -ClosingTag "</p>"
-    HTMLPrinter -Table $Dataset -Columns @("class", "class_desc", "major_id", "minor_id", "grantee_principal_id", "grantor_principal_id", "type", "permission_name", "state", "state_desc")
+    HTMLPrinter -Table $Dataset -Columns @("class", "class_desc", "major_id", "minor_id", "grantee_principal_id", "grantor_principal_id", "type", "type", "state", "state_desc")
+    CsvWriter 'CIS-public-role-permissions' "class,class_desc,major_id,minor_id,grantee_principal_id,grantor_principal_id,type,state,state_desc"
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-public-role-permissions' "$($Row.class),$($Row.class_desc),$($Row.major_id),$($Row.minor_id),$($Row.grantee_principal_id),$($Row.grantor_principal_id),$($Row.type),$($Row.state),$($Row.state_desc)"
+    }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 3.9
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.9
@@ -884,11 +1121,30 @@ function SecurityChecklists {
                     name,
                     type_desc
                 ;"
+    $AltSqlQuery = "SELECT
+                        pr.[name]                AS name,
+                        pe.[permission_name]    AS permission_name,
+                        pe.[state_desc]         AS 
+                    FROM 
+                        sys.server_principals pr
+                    JOIN 
+                        sys.server_permissions pe
+                    ON 
+                        pr.principal_id = pe.grantee_principal_id
+                    WHERE 
+                        pr.name like 'BUILTIN%'
+                        OR (pr.[type_desc] = 'WINDOWS_GROUP'
+                        AND pr.[name] like CAST(SERVERPROPERTY('MachineName') AS nvarchar) + '%')	
+                    ;"
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "The following list contains all server principals." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "Check if none of these principals are Windows BUILTIN groups or accounts." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "Check if there are no WINDOWS_GROUP users. (type_desc = WINDOWS_GROUP and name contains the MachineName)`n" -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("name", "type_desc")
+    CsvWriter 'CIS-server-principals' "name,type_desc"
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-server-principals' "$($Row.name),$($Row.type_desc)"
+    }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 3.11.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 3.11.
@@ -909,6 +1165,10 @@ function SecurityChecklists {
         HTMLPrinter -OpeningTag "<p>" -Content "The 'public' serve role has been granted access to the sql agent following proxies." -ClosingTag "</p>"
         HTMLPrinter -OpeningTag "<p>" -Content "These proxies may have higher privilages then the user calling the proxy. Therefore they should be removed.`n" -ClosingTag "</p>"
         HTMLPrinter -Table $Dataset -Columns @("proxy_name")
+        CsvWriter 'CIS-server-principals' "proxy_name"
+        foreach ($Row in $Dataset) {
+            CsvWriter 'CIS-server-principals' "$($Row.proxy_name)"
+        }
     }
     else {
         HTMLPrinter -OpeningTag "<p>" -Content "The 'msdb' database's 'public' role has not been granted access to proxies.`n" -ClosingTag "</p>"
@@ -969,6 +1229,11 @@ function SecurityChecklists {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if SQL Authenticated Logins have the 'CHECK_EXPIRATION' option set to on." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("name", "access_method", "is_expiration_checked")
+    CsvWriter 'CIS-CHECK-EXPIRATION' "name,access_method,is_expiration_checked"
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-CHECK-EXPIRATION' "$($Row.name),$($Row.access_method),$($Row.is_expiration_checked)"
+    }
+
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 4.3.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 4.3.
@@ -986,6 +1251,10 @@ function SecurityChecklists {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'is_policy_checked' is set to 'True'." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("name", "is_disabled", "is_policy_checked")
+    CsvWriter 'CIS-Check-Policy' "name,is_disabled,is_policy_checked"
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-Check-Policy' "$($Row.name),$($Row.is_disabled),$($Row.is_policy_checked)"
+    }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 5.1.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 5.1.
@@ -1009,6 +1278,9 @@ function SecurityChecklists {
     HTMLPrinter -OpeningTag "<p>" -Content "Check if the 'NumberOfLogFiles' is 12 or higher." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "If the number is -1, this might mean that the 'Limit the number of error log files before they are recycled' checkmark is not checked." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("number_of_log_files")
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-Compliance' "number_of_log_files,$($Row.number_of_log_files),,>12"
+    }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 5.2.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 5.2.
@@ -1024,6 +1296,9 @@ function SecurityChecklists {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if 'default trace enabled' is enabled (1)." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("name", "value_configured", "value_in_use")
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-Compliance' "$($Row.name),$($Row.value_configured),$($Row.value_in_use),1"
+    }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 5.3.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 5.3.
@@ -1035,6 +1310,9 @@ function SecurityChecklists {
     HTMLPrinter -OpeningTag "<p>" -Content "Check if the 'audit level' is configured to failure." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "A value of 'all' is also accepted, however it is recommended to check this with the SQL Server audit feature." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("name", "config_value")
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-Compliance' "$($Row.name),$($Row.config_value),,failure"
+    }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 5.4.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 5.4.
@@ -1074,6 +1352,10 @@ function SecurityChecklists {
     HTMLPrinter -OpeningTag "<p>" -Content "For these rows check if both the 'Audit Enabled' and 'Audit Specification Enabled' are set to 'Y'." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "Also check if 'audited_result' is set to 'SUCCESS AND FAILURE'." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("audit_name", "audit_enabled", "write_location", "audit_specification_name", "audit_specification_enabled", "audit_action_name", "audited_result")
+    CsvWriter 'CIS-Audit-Enabled' "audit_name,audit_enabled,write_location,audit_specification_name,audit_specification_enabled,audit_action_name,audited_result"
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-Audit-Enabled' "$($Row.audit_name),$($Row.audit_enabled),$($Row.write_location),$($Row.audit_specification_name),$($Row.audit_specification_enabled),$($Row.audit_action_name),$($Row.audited_result)"
+    }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 6.2.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 6.2.
@@ -1091,6 +1373,10 @@ function SecurityChecklists {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "Check if all is_user_defined assemblies have 'SAFE_ACCESS' set under 'permission_set_desc'." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("name", "permission_set_desc", "is_user_defined")
+    CsvWriter 'CIS-Safe-Access' "name,permission_set_desc,is_user_defined"
+    foreach ($Row in $Dataset) {
+        CsvWriter 'CIS-Safe-Access' "$($Row.name),$($Row.permission_set_desc),$($Row.is_user_defined)"
+    }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 7.1.
     # This query is based on CIS Microsoft SQL Server 2016 benchmark section 7.1.
@@ -1103,12 +1389,16 @@ function SecurityChecklists {
                 ;"
     HTMLPrinter -OpeningTag "<p>" -Content "Check for every databse if the 'algorithm_desc' is set to 'AES_128', 'AES_192' or 'AES_256'." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "If no output is returned for a database then this means that no symmetric key is available for that database.`n" -ClosingTag "</p>"
+    CsvWriter 'CIS-SKE' "database_name,name,principal_id,symmetric_key_id,key_length,key_algorithm,algorithm_desc,create_date,modify_date,key_guid,key_thumbprint,provider_type,cryptographic_provider_guid,cryptographic_provider_algid,RowError,RowState,Table,ItemArray,HasErrors"
     if ($Script:AllDatabases) {
         foreach ($db in $Script:DatabasesInfo) {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $Dataset = DataCollector $SqlQuery
             HTMLPrinter -Table $Dataset -Columns @("*")
+            foreach ($Row in $Dataset) {
+                CsvWriter 'CIS-SKE' "$($Row.database_name),$($Row.name),$($Row.principal_id),$($Row.symmetric_key_id),$($Row.key_length),$($Row.key_algorithm),$($Row.algorithm_desc),$($Row.create_date),$($Row.modify_date),$($Row.key_guid),$($Row.key_thumbprint),$($Row.provider_type),$($Row.cryptographic_provider_guid),$($Row.cryptographic_provider_algid),$($Row.RowError),$($Row.RowState),$($Row.Table),$($Row.ItemArray),$($Row.HasErrors)"
+            }
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
@@ -1116,6 +1406,7 @@ function SecurityChecklists {
     else {
         $Dataset = DataCollector $SqlQuery
         HTMLPrinter -Table $Dataset -Columns @("*")
+        CsvWriter 'CIS-SKE' "$($database_name),$($name),$($principal_id),$($symmetric_key_id),$($key_length),$($key_algorithm),$($algorithm_desc),$($create_date),$($modify_date),$($key_guid),$($key_thumbprint),$($provider_type),$($cryptographic_provider_guid),$($cryptographic_provider_algid),$($RowError),$($RowState),$($Table),$($ItemArray),$($HasErrors)"
     }
 
     # This query is based on CIS Microsoft SQL Server 2012 benchmark section 7.2.
@@ -1130,12 +1421,16 @@ function SecurityChecklists {
                 ;"
     HTMLPrinter -OpeningTag "<p>" -Content "Check for every databse if the 'key_length' is set to '2048'." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "If no output is returned for a database then this means that no asymmetric key is available for that database.`n" -ClosingTag "</p>"
+    CsvWriter 'CIS-key-length' "database_name,key_name,key_length,expected"
     if ($Script:AllDatabases) {
         foreach ($db in $Script:DatabasesInfo) {
             $Script:Database = $db.name
             SqlConnectionBuilder
             $Dataset = DataCollector $SqlQuery
             HTMLPrinter -Table $Dataset -Columns @("database_name", "key_name", "key_length")
+            foreach ($Row in $Dataset) {
+                CsvWriter 'CIS-key-length' "$($Row.database_name),$($Row.key_name),$($Row.key_length),2048"
+            }
         }
         $Script:Database = $Script:OriginalDatabase
         SqlConnectionBuilder
@@ -1143,6 +1438,9 @@ function SecurityChecklists {
     else {
         $Dataset = DataCollector $SqlQuery
         HTMLPrinter -Table $Dataset -Columns @("database_name", "key_name", "key_length")
+        foreach ($Row in $Dataset) {
+            CsvWriter 'CIS-key-length' "$($Row.database_name),$($Row.key_name),$($Row.key_length),2048"
+        }
     }
 }
 
@@ -1209,7 +1507,7 @@ function UserManagement {
                     SP.name
                 ;"
     $Dataset = DataCollector $SqlQuery
-    foreach($Row in $Dataset) {
+    foreach ($Row in $Dataset) {
         if ($Row.login_name -ne "sa" -and $Row.login_name -notlike "##MS_*" -and $Row.login_name -notlike "NT Service\*" -and $Row.login_name -notlike "NT AUTHORITY\*" ) {
             $new_row = $AuthorizationMatrix.NewRow()
 
@@ -1234,12 +1532,16 @@ function UserManagement {
     $TempTable.Columns.Add("DBName", "System.String") | Out-Null
     $TempTable.Columns.Add("UserName", "System.String") | Out-Null
     $TempTable.Columns.Add("AliasName", "System.String") | Out-Null
-    foreach($DataTable in $Dataset.Tables) {
-        foreach($Row in $DataTable){
+    foreach ($DataTable in $Dataset.Tables) {
+        foreach ($Row in $DataTable) {
             $TempTable.ImportRow($Row)
         }
     }
     HTMLPrinter -Table $TempTable -Columns @("LoginName", "DBName", "UserName", "AliasName")
+    CsvWriter 'UM-UserMapping' "LoginName,DBName,UserName,AliasName"
+    foreach ($Row in $TempTable) {
+        CsvWriter 'UM-UserMapping' "$($Row.LoginName),$($Row.DBName),$($Row.UserName),$($Row.AliasName)"
+    }
 
     HTMLPrinter -OpeningTag "<h3 id='Logins_permissions' class='headers'>" -Content "Logins permissions" -ClosingTag "</h3>"
     # Step 2: Audit who is in server-level roles.
@@ -1260,14 +1562,18 @@ function UserManagement {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "A list of who is in server-level roles" -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("server_name", "server_role", "member_name", "type_desc", "date_created", "last_modified")
-    foreach($Row in $Dataset) {
+    CsvWriter 'UM-Server-who-is-level-roles' "server_name,server_role,member_name,type_desc,date_created,last_modified"
+    foreach ($Row in $Dataset) {
+        CsvWriter 'UM-Server-who-is-level-roles' "$($Row.server_name),$($Row.server_role),$($Row.member_name),$($Row.type_desc),$($Row.date_created),$($Row.last_modified)"
+    }
+    foreach ($Row in $Dataset) {
         if ($Row.member_name -ne "sa" -and $Row.member_name -notlike "##MS_*" -and $Row.member_name -notlike "NT Service\*" -and $Row.member_name -notlike "NT AUTHORITY\*" ) {
-                $new_row = $AuthorizationMatrix.NewRow()
+            $new_row = $AuthorizationMatrix.NewRow()
 
-                $new_row.login_name = $Row.member_name
-                $new_row.server_name = $Row.server_name
-                $new_row.login_type = $Row.type_desc
-                $new_row.srv_role_name = $Row.server_role
+            $new_row.login_name = $Row.member_name
+            $new_row.server_name = $Row.server_name
+            $new_row.login_type = $Row.type_desc
+            $new_row.srv_role_name = $Row.server_role
 
 
             $AuthorizationMatrix.Rows.Add($new_row)
@@ -1296,6 +1602,10 @@ function UserManagement {
     HTMLPrinter -OpeningTag "<p>" -Content "A list of Server level roles, defining what they are, and what they can do." -ClosingTag "</p>"
     HTMLPrinter -OpeningTag "<p>" -Content "Fixed server roles are not shown." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("server_name", "role_name", "permission_name", "state_desc", "grantor", "date_created", "last_modified")
+    CsvWriter 'UM-Server-level-roles' "server_name,role_name,permission_name,state_desc,grantor,date_created,last_modified"
+    foreach ($Row in $Dataset) {
+        CsvWriter 'UM-Server-level-roles' "$($Row.server_name),$($Row.role_name),$($Row.permission_name),$($Row.state_desc),$($Row.grantor),$($Row.date_created),$($Row.last_modified)"
+    }
 
     # Step 4: Audit any Logins that have access to specific objects outside of a role.
     $SqlQuery = "SELECT
@@ -1331,7 +1641,11 @@ function UserManagement {
     $Dataset = DataCollector $SqlQuery
     HTMLPrinter -OpeningTag "<p>" -Content "A list of permissions directly granted or denied to logins." -ClosingTag "</p>"
     HTMLPrinter -Table $Dataset -Columns @("server_name", "schema_name", "object_name", "type_desc", "grantee", "grantor", "principal_type_desc", "permission_name", "permission_state_desc")
-    foreach($Row in $Dataset) {
+    CsvWriter 'UM-permissions-at-login' "server_name,schema_name,object_name,type_desc,grantee,grantor,principal_type_desc,permission_name,permission_state_desc"
+    foreach ($Row in $Dataset) {
+        CsvWriter 'UM-permissions-at-login' "$($Row.server_name),$($Row.schema_name),$($Row.object_name),$($Row.type_desc),$($Row.grantee),$($Row.grantor),$($Row.principal_type_desc),$($Row.permission_name),$($Row.permission_state_desc)"
+    }
+    foreach ($Row in $Dataset) {
         if ($Row.grantee -ne "sa" -and $Row.grantee -notlike "##MS_*" -and $Row.grantee -notlike "NT Service\*" -and $Row.grantee -notlike "NT AUTHORITY\*" ) {
             $new_row = $AuthorizationMatrix.NewRow()
 
@@ -1344,7 +1658,7 @@ function UserManagement {
             $new_row.srv_permission_name = $Row.permission_name
             $new_row.srv_permission_state = $Row.permission_state_desc
 
-        $AuthorizationMatrix.Rows.Add($new_row)
+            $AuthorizationMatrix.Rows.Add($new_row)
         }
     }
 
@@ -1377,7 +1691,7 @@ function UserManagement {
                 ;"
     
     # Step 6: Audit roles on each database, defining what they are, and what they can do.
-    $SqlQueryDBRoles ="SELECT
+    $SqlQueryDBRoles = "SELECT
                     @@SERVERNAME                AS server_name,
                     DB_NAME()                   AS database_name,
                     DPRIN.name                  AS role_name,
@@ -1450,7 +1764,11 @@ function UserManagement {
             $Dataset = DataCollector $SqlQueryDBAccess
             HTMLPrinter -OpeningTag "<p>" -Content "A list of users and the roles they are in." -ClosingTag "</p>"
             HTMLPrinter -Table $Dataset -Columns @("server_name", "database_name", "user_name", "role_name", "login_name", "login_type", "date_created", "last_modified")
-            foreach($Row in $Dataset) {
+            CsvWriter "UM-Users-roles-$($db.name)" "server_name,database_name,user_name,role_name,login_name,login_type,date_created,last_modified"
+            foreach ($Row in $Dataset) {
+                CsvWriter "UM-Users-roles-$($db.name)" "$($Row.server_name),$($Row.database_name),$($Row.user_name),$($Row.role_name),$($Row.login_name),$($Row.login_type),$($Row.date_created),$($Row.last_modified)"
+            }
+            foreach ($Row in $Dataset) {
                 if ($Row.user_name -ne "guest" -and $Row.user_name -ne "INFORMATION_SCHEMA" -and $Row.user_name -ne "MS_DataCollectorInternalUser" -and $Row.user_name -ne "sys" -and $Row.login_name -ne "sa" -and $Row.login_name -notlike "##MS_*" -and $Row.login_name -notlike "NT Service\*" -and $Row.login_name -notlike "NT AUTHORITY\*") {
                     $new_row = $AuthorizationMatrix.NewRow()
         
@@ -1461,7 +1779,7 @@ function UserManagement {
                     $new_row.db_user_name = $Row.user_name
                     $new_row.db_role_name = $Row.role_name
         
-                $AuthorizationMatrix.Rows.Add($new_row)
+                    $AuthorizationMatrix.Rows.Add($new_row)
                 }
             }
 
@@ -1470,13 +1788,21 @@ function UserManagement {
                 HTMLPrinter -OpeningTag "<p>" -Content "A list of Database level roles, defining what they are, and what they can do." -ClosingTag "</p>"
                 HTMLPrinter -OpeningTag "<p>" -Content "Fixed database roles are not shown." -ClosingTag "</p>"
                 HTMLPrinter -Table $Dataset -Columns @("server_name", "database_name", "role_name", "schema_name", "object_name", "permission_name", "state_desc", "grantor", "date_created", "last_modified")
+                CsvWriter "UM-database-level-roles-$($db.name)" "server_name,database_name,role_name,schema_name,object_name,permission_name,state_desc,grantor,date_created,last_modified"
+                foreach ($Row in $Dataset) {
+                    CsvWriter "UM-database-level-roles-$($db.name)" "$($Row.server_name),$($Row.database_name),$($Row.role_name),$($Row.schema_name),$($Row.object_name),$($Row.permission_name),$($Row.state_desc),$($Row.grantor),$($Row.date_created),$($Row.last_modified)"
+                }
             }
 
             if ($Dataset.Tables.Count -ne 0) {
                 $Dataset = DataCollector $SqlQueryDBRights
                 HTMLPrinter -OpeningTag "<p>" -Content "Audit any users that have access to specific objects outside of a role" -ClosingTag "</p>"
                 HTMLPrinter -Table $Dataset -Columns @("server_name", "database_name", "schema_name", "object_name", "type_desc", "grantee", "login_name", "grantor", "principal_type_desc", "permission_name", "permission_type_desc")    
-                foreach($Row in $Dataset) {
+                CsvWriter "UM-user-specific-objects-$($db.name)" "server_name,database_name,schema_name,object_name,type_desc,grantee,login_name,login_name,principal_type_desc,permission_name,permission_type_desc"
+                foreach ($Row in $Dataset) {
+                    CsvWriter "UM-user-specific-objects-$($db.name)" "$($Row.server_name),$($Row.database_name),$($Row.schema_name),$($Row.object_name),$($Row.type_desc),$($Row.grantee),$($Row.login_name),$($Row.login_name),$($Row.principal_type_desc),$($Row.permission_name),$($Row.permission_type_desc)"
+                }
+                foreach ($Row in $Dataset) {
                     if ($Row.user_name -ne "guest" -and $Row.user_name -ne "INFORMATION_SCHEMA" -and $Row.user_name -ne "MS_DataCollectorInternalUser" -and $Row.user_name -ne "sys" -and $Row.login_name -ne "sa" -and $Row.login_name -notlike "##MS_*" -and $Row.login_name -notlike "NT Service\*" -and $Row.login_name -notlike "NT AUTHORITY\*") {
                         $new_row = $AuthorizationMatrix.NewRow()
 
@@ -1504,7 +1830,11 @@ function UserManagement {
         $Dataset = DataCollector $SqlQueryDBAccess
         HTMLPrinter -OpeningTag "<p>" -Content "A list of users and the roles they are in." -ClosingTag "</p>"
         HTMLPrinter -Table $Dataset -Columns @("server_name", "database_name", "user_name", "role_name", "login_name", "login_type", "date_created", "last_modified")
-        foreach($Row in $Dataset) {
+        CsvWriter "UM-Users-roles-$($Script:Database)" "server_name,database_name,role_name,schema_name,login_name,login_type,date_created,last_modified"
+        foreach ($Row in $Dataset) {
+            CsvWriter "UM-Users-roles-$($Script:Database)" "$($Row.server_name),$($Row.database_name),$($Row.role_name),$($Row.schema_name),$($Row.login_name),$($Row.login_type),$($Row.date_created),$($Row.last_modified)"
+        }
+        foreach ($Row in $Dataset) {
             if ($Row.user_name -ne "guest" -and $Row.user_name -ne "INFORMATION_SCHEMA" -and $Row.user_name -ne "MS_DataCollectorInternalUser" -and $Row.user_name -ne "sys" -and $Row.login_name -ne "sa" -and $Row.login_name -notlike "##MS_*" -and $Row.login_name -notlike "NT Service\*" -and $Row.login_name -notlike "NT AUTHORITY\*") {
                 $new_row = $AuthorizationMatrix.NewRow()
 
@@ -1524,30 +1854,99 @@ function UserManagement {
             HTMLPrinter -OpeningTag "<p>" -Content "A list of Database level roles, defining what they are, and what they can do." -ClosingTag "</p>"
             HTMLPrinter -OpeningTag "<p>" -Content "Fixed database roles are not shown." -ClosingTag "</p>"
             HTMLPrinter -Table $Dataset -Columns @("server_name", "database_name", "role_name", "schema_name", "object_name", "permission_name", "state_desc", "grantor", "date_created", "last_modified")    
+            CsvWriter "UM-database-level-roles-$($Script:Database)" "server_name,database_name,role_name,schema_name,object_name,permission_name,state_desc,grantor,date_created,last_modified"
+            foreach ($Row in $Dataset) {
+                CsvWriter "UM-database-level-roles-$($Script:Database)" "$($Row.server_name),$($Row.database_name),$($Row.role_name),$($Row.schema_name),$($Row.object_name),$($Row.permission_name),$($Row.state_desc),$($Row.grantor),$($Row.date_created),$($Row.last_modified)"
+            }
         }
 
         $Dataset = DataCollector $SqlQueryDBRights
         if ($Dataset.Tables.Count -ne 0) {
             HTMLPrinter -OpeningTag "<p>" -Content "Audit any users that have access to specific objects outside of a role" -ClosingTag "</p>"
             HTMLPrinter -Table $Dataset -Columns @("server_name", "database_name", "schema_name", "object_name", "type_desc", "grantee", "login_name", "grantor", "principal_type_desc", "permission_name", "permission_type_desc")
-            foreach($Row in $Dataset) {
+            CsvWriter "UM-user-specific-objects-$($Script:Database)" "server_name,database_name,schema_name,object_name,type_desc,grantee,login_name,login_name,principal_type_desc,permission_name,permission_type_desc"
+            foreach ($Row in $Dataset) {
+                CsvWriter "UM-user-specific-objects-$($Script:Database)" "$($Row.server_name),$($Row.database_name),$($Row.schema_name),$($Row.object_name),$($Row.type_desc),$($Row.grantee),$($Row.login_name),$($Row.login_name),$($Row.principal_type_desc),$($Row.permission_name),$($Row.permission_type_desc)"
+            }
+            foreach ($Row in $Dataset) {
                 if ($Row.user_name -ne "guest" -and $Row.user_name -ne "INFORMATION_SCHEMA" -and $Row.user_name -ne "MS_DataCollectorInternalUser" -and $Row.user_name -ne "sys" -and $Row.login_name -ne "sa" -and $Row.login_name -notlike "##MS_*" -and $Row.login_name -notlike "NT Service\*" -and $Row.login_name -notlike "NT AUTHORITY\*") {
-                $new_row = $AuthorizationMatrix.NewRow()
+                    $new_row = $AuthorizationMatrix.NewRow()
 
-                $new_row.login_name = $Row.login_name
-                $new_row.server_name = $Row.server_name
-                $new_row.login_type = $Row.principal_type_desc
-                $new_row.db_name = $Row.database_name
-                $new_row.db_user_name = $Row.grantee
-                $new_row.db_schema_name = $Row.schema_name
-                $new_row.db_object_name = $Row.object_name
-                $new_row.db_object_type = $Row.type_desc
-                $new_row.db_permission_name = $Row.permission_name
-                $new_row.db_permission_state = $Row.permission_state_desc
+                    $new_row.login_name = $Row.login_name
+                    $new_row.server_name = $Row.server_name
+                    $new_row.login_type = $Row.principal_type_desc
+                    $new_row.db_name = $Row.database_name
+                    $new_row.db_user_name = $Row.grantee
+                    $new_row.db_schema_name = $Row.schema_name
+                    $new_row.db_object_name = $Row.object_name
+                    $new_row.db_object_type = $Row.type_desc
+                    $new_row.db_permission_name = $Row.permission_name
+                    $new_row.db_permission_state = $Row.permission_state_desc
 
-                $AuthorizationMatrix.Rows.Add($new_row)
+                    $AuthorizationMatrix.Rows.Add($new_row)
                 }
             }
+        }
+    }
+
+    HTMLPrinter -OpeningTag "<h3 id='with-grant' class='headers'>" -Content 'with grant permission' -ClosingTag "</h3>"
+    # Grab all users with 'with grant's.
+    $SqlQuery = "SELECT 
+                    DB_NAME()           AS db_name, 
+                    PM.class_desc       AS class_desc,
+                    P.name              AS grantee,
+                    O.name              AS grantor,
+                    PM.type             AS type,
+                    PM.permission_name  AS permission_name,
+                    PM.state            AS state
+                FROM (
+                    SELECT 
+                        * 
+                    FROM 
+                        sys.database_permissions
+                    UNION ALL
+                    SELECT 
+                        * 
+                    FROM 
+                        sys.server_permissions 
+                ) AS PM 
+                JOIN sys.server_principals AS P 
+                    ON PM.grantee_principal_id = P.principal_id
+                JOIN sys.server_principals AS O 
+                    ON PM.grantor_principal_id = O.principal_id
+                WHERE 
+                    state not like 'G'
+                ;"
+    CsvWriter 'UM-users-with-with-grant' "db_name,class_desc,grantee,grantor,type,permission_name,state"
+    if ($Script:AllDatabases) {
+        foreach ($db in $Script:DatabasesInfo) {
+            $Script:Database = $db.name
+            SqlConnectionBuilder
+            $Dataset = DataCollector $SqlQuery
+            if ($Dataset.Rows.Count -gt 0) {
+                HTMLPrinter -OpeningTag "<p>" -Content "The following users in $($db.name) have 'with grant'." -ClosingTag "</p>"
+                HTMLPrinter -Table $Dataset -Columns @("db_name","class_desc","grantee","grantor","type","permission_name","state")
+                foreach ($Row in $Dataset) {
+                    CsvWriter 'UM-users-with-with-grant' "$($db.name),$($Row.class_desc),$($Row.grantee),$($Row.grantor),$($Row.type),$($Row.permission_name),$($Row.state)"
+                }
+            }
+            else {
+                HTMLPrinter -OpeningTag "<p>" -Content "There are no accounts with 'with grant' rights." -ClosingTag "</p>"
+            }
+        }
+        $Script:Database = $Script:OriginalDatabase
+    }
+    else {
+        $Dataset = DataCollector $SqlQuery
+        if ($Dataset.Rows.Count -gt 0) {
+            HTMLPrinter -OpeningTag "<p>" -Content "The following users in $($db.name) have 'with grant'." -ClosingTag "</p>"
+            HTMLPrinter -Table $Dataset -Columns @("db_name","class_desc","grantee","grantor","type","permission_name","state")
+            foreach ($Row in $Dataset) {
+                CsvWriter 'UM-users-with-with-grant' "$($db.name),$($Row.class_desc),$($Row.grantee),$($Row.grantor),$($Row.type),$($Row.permission_name),$($Row.state)"
+            }
+        }
+        else {
+            HTMLPrinter -OpeningTag "<p>" -Content "There are no accounts with 'with grant' rights." -ClosingTag "</p>"
         }
     }
 
@@ -1559,25 +1958,29 @@ function UserManagement {
 
     HTMLPrinter -OpeningTag "<h1 id='Authorizationmatrix' class='headers'>" -Content "Authorizationmatrix" -ClosingTag "</h1>"
     HTMLPrinter -Table $AuthorizationMatrix -Columns @(
-    "login_name",
-    "server_name",
-    "login_type",
-    "srv_role_name",
-    "srv_schema_name",
-    "srv_object_name",
-    "srv_object_type",
-    "srv_permission_name",
-    "srv_permission_state",
-    "db_name",
-    "db_user_name",
-    "db_role_name",
-    "db_schema_name",
-    "db_object_name",
-    "db_object_type",
-    "db_permission_name",
-    "db_permission_state",
-    "notes"
+        "login_name",
+        "server_name",
+        "login_type",
+        "srv_role_name",
+        "srv_schema_name",
+        "srv_object_name",
+        "srv_object_type",
+        "srv_permission_name",
+        "srv_permission_state",
+        "db_name",
+        "db_user_name",
+        "db_role_name",
+        "db_schema_name",
+        "db_object_name",
+        "db_object_type",
+        "db_permission_name",
+        "db_permission_state",
+        "notes"
     )
+    CsvWriter "UM-Authorizationmatrix" "login_name,server_name,login_type,srv_role_name,srv_schema_name,srv_object_name,srv_object_type,srv_permission_name,srv_permission_state,db_name,db_user_name,db_role_name,db_schema_name,db_object_name,db_object_type,db_permission_name,db_permission_state,notes"
+    foreach ($Row in $AuthorizationMatrix) {
+        CsvWriter "UM-Authorizationmatrix" "$($Row.login_name),$($Row.server_name),$($Row.login_type),$($Row.srv_role_name),$($Row.srv_schema_name),$($Row.srv_object_name),$($Row.srv_object_type),$($Row.srv_permission_name),$($Row.srv_permission_state),$($Row.db_name),$($Row.db_user_name),$($Row.db_role_name),$($Row.db_schema_name),$($Row.db_object_name),$($Row.db_object_type),$($Row.db_permission_name),$($Row.db_permission_state),$($Row.notes)"
+    }
 }
 
 function HTMLPrinter {
@@ -1839,7 +2242,7 @@ function HTMLPrinter {
 "@
 
     try {   
-        if ($Table -ne $null) {
+        if ($null -ne $Table) {
             Out-File -FilePath $Script:Outfile -InputObject $CollapsableStart -append
             out-file -filepath $Script:Outfile -inputobject ($Table | ConvertTo-Html -Property $Columns -Fragment) -append
             Out-File -FilePath $Script:Outfile -InputObject "</div>" -append
@@ -1858,9 +2261,5 @@ function HTMLPrinter {
         Write-Host "An Error has occured."
     }
 }
-
-
-
-
 
 Startup
